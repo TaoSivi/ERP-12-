@@ -1,0 +1,8 @@
+{
+  "name": "laobooks-erp",
+  "private": true,
+  "scripts": {
+    "test": "node --test \"tests/*.test.js\"",
+    "serve": "python -m http.server 8123"
+  }
+}
