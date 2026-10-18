@@ -3,8 +3,10 @@
    ------------------------------------------------------------
    Every role has, per module, a list of allowed functions:
      view · create · edit · post · delete · export
-   • Defaults come from ROLE_PERMS (which modules a role opens) → full functions,
-     except Viewer/Auditor = view+export only. Admin is always full and cannot be edited.
+   • Defaults come from ROLE_PERMS (which modules a role opens). Post and delete/void are
+     kept for Admin, Manager, Custom and Accountant; other roles get view/create/edit/export;
+     Viewer/Auditor get view+export. Admin can grant more to any role in the editor.
+     Admin is always full and cannot be edited.
    • Admin overrides are saved in settings.company.role_perms = { Role: { module: [fn,...] } }.
    • classify(el) maps a button (by id / data-attr) to a function so the UI can hide it and
      a capture-phase click guard can refuse it. Buttons not in the map are not gated.
@@ -16,6 +18,7 @@
   const FUNCS = [["view", "ເບິ່ງ"], ["create", "ສ້າງ"], ["edit", "ແກ້ໄຂ"], ["post", "Post/ອະນຸມັດ"], ["delete", "ລຶບ/Void"], ["export", "Export/ພິມ"]];
   const ALL = FUNCS.map(f => f[0]);
   const READONLY = { Viewer: 1, Auditor: 1 };
+  const FULL = { Accountant: 1, Manager: 1, Custom: 1 }; // may Post and delete/void by default
   let base = {}, modules = [];
 
   function configure(o) { if (o.base) base = o.base; if (o.modules) modules = o.modules; }
@@ -25,7 +28,8 @@
     if (role === "Admin") return ALL.slice();
     const p = base[role];
     if (p === undefined || (p !== null && p.indexOf(mod) === -1)) return [];
-    return READONLY[role] ? ["view", "export"] : ALL.slice();
+    if (READONLY[role]) return ["view", "export"];
+    return FULL[role] ? ALL.slice() : ["view", "create", "edit", "export"];
   }
   function get(role, mod) {
     if (role === "Admin") return ALL.slice();
@@ -62,8 +66,8 @@
   const RX = {
     export: /^(i?print|b?print|pslip|pz-print|nx-print|paycsv|r-csv|r-tbcsv|ap-csv|csv-go|coaexp|i-imp|i-exp|e-imp|e-exp|c-imp|c-exp|v-imp|v-exp|b-imp|b-exp|pr-imp|pr-exp|br-imp|bom-imp|iimport|bimport|aimport|obimport|coaimport|icopy|bcopy|ic-copy)$/,
     delete: /^(del|voidinv|voidbill|dc-bdel|pos-refund|nx-return|nx-refund)$/,
-    post: /^(post|pp|cn-post|ecl-post|approve|reject|nx-reject|receive|pay|nx-pay|pos-pay|batchpay|run|ap-run|yearend|catchdep|dispose|impair|fxadj|je-save|bankfile|rt-recv)$/,
-    create: /^(add\w*|new\w*|\w+-add|\w+-new|add-\w+|quote|so|deliv|cn|dn|je|quickrec|qexp|transfer|advance|openstock|recinv|recur|baddebt|rq-submit|nc-submit)$/,
+    post: /^(post|pp|cn-post|ecl-post|approve|reject|nx-reject|receive|pay|nx-pay|batchpay|run|ap-run|yearend|catchdep|dispose|impair|fxadj|je-save|bankfile|rt-recv)$/,
+    create: /^(pos-pay|add\w*|new\w*|\w+-add|\w+-new|add-\w+|quote|so|deliv|cn|dn|je|quickrec|qexp|transfer|advance|openstock|recinv|recur|baddebt|rq-submit|nc-submit)$/,
     edit: /^(edit|salrev)$/
   };
   const DATA = { "data-ue": "edit", "data-ut": "edit", "data-edit": "edit", "data-ud": "delete", "data-del": "delete", "data-delp": "delete" };

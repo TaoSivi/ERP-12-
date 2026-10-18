@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { freshApp } = require("./helpers");
 
-const BASE = { Admin: null, Sales: ["dashboard", "invoices", "customers"], Viewer: ["dashboard", "reports"], Manager: null };
+const BASE = { Admin: null, Accountant: ["dashboard", "invoices", "customers"], Sales: ["dashboard", "invoices", "customers"], Viewer: ["dashboard", "reports"], Manager: null };
 async function app() {
   const c = await freshApp();
   c.Perms.configure({ base: BASE, modules: [["invoices", "Invoice"], ["customers", "Customers"], ["reports", "Reports"]] });
@@ -12,9 +12,12 @@ async function app() {
 const A = x => Array.from(x);
 const btn = attrs => ({ getAttribute: k => attrs[k] || null, hasAttribute: k => k in attrs });
 
-test("defaults: a role gets every function in the modules it opens, nothing elsewhere", async () => {
+test("defaults: staff roles cannot post or delete; Accountant and Manager can", async () => {
   const { Perms } = await app();
-  assert.deepEqual(A(Perms.get("Sales", "invoices")), A(Perms.ALL));
+  assert.deepEqual(A(Perms.get("Sales", "invoices")), ["view", "create", "edit", "export"]);
+  assert.deepEqual(A(Perms.get("Accountant", "invoices")), A(Perms.ALL));
+  assert.equal(Perms.can("Sales", "invoices", "post"), false);
+  assert.equal(Perms.can("Sales", "invoices", "delete"), false);
   assert.deepEqual(A(Perms.get("Sales", "gl")), []);
   assert.equal(Perms.can("Sales", "gl", "view"), false);
   assert.equal(Perms.can("Manager", "gl", "delete"), true); // base null = all modules
@@ -38,8 +41,15 @@ test("set: per-module override persists and only affects that role + module", as
   assert.equal(Perms.can("Sales", "invoices", "create"), true);
   assert.equal(Perms.can("Sales", "invoices", "post"), false);
   assert.equal(Perms.can("Sales", "invoices", "delete"), false);
-  assert.deepEqual(A(Perms.get("Sales", "customers")), A(Perms.ALL)); // untouched module keeps defaults
+  assert.deepEqual(A(Perms.get("Sales", "customers")), ["view", "create", "edit", "export"]); // untouched module keeps defaults
   assert.equal(Perms.isCustom("Sales"), true);
+});
+
+test("Admin can grant post to a staff role without touching other roles", async () => {
+  const { Perms } = await app();
+  Perms.set("Sales", "invoices", ["view", "create", "post"]);
+  assert.equal(Perms.can("Sales", "invoices", "post"), true);
+  assert.equal(Perms.can("Accountant", "invoices", "delete"), true);
 });
 
 test("set: any function implies view; clearing everything hides the module", async () => {
@@ -61,7 +71,7 @@ test("reset returns a role to defaults", async () => {
   Perms.set("Sales", "invoices", ["view"]);
   Perms.reset("Sales");
   assert.equal(Perms.isCustom("Sales"), false);
-  assert.deepEqual(A(Perms.get("Sales", "invoices")), A(Perms.ALL));
+  assert.deepEqual(A(Perms.get("Sales", "invoices")), ["view", "create", "edit", "export"]);
 });
 
 test("classify maps buttons to functions; reports launchers and unknown ids stay ungated", async () => {
@@ -71,6 +81,7 @@ test("classify maps buttons to functions; reports launchers and unknown ids stay
   assert.equal(f("addPO"), "create");
   assert.equal(f("qexp"), "create"); // Quick Expense creates, it is not an export
   assert.equal(f("post"), "post");
+  assert.equal(f("pos-pay"), "create"); // till payment is the cashier's core job
   assert.equal(f("receive"), "post");
   assert.equal(f("voidinv"), "delete");
   assert.equal(f("iprint"), "export");
