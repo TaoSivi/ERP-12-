@@ -1,0 +1,112 @@
+/* ============================================================
+   LaoBooks ERP – UI helpers
+   ============================================================ */
+(function () {
+  const money = (n, cur) => {
+    const v = Number(n) || 0;
+    return v.toLocaleString("en-US", { maximumFractionDigits: 0 }) + " " + (cur || "₭");
+  };
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const today = () => new Date().toISOString().slice(0, 10);
+  const fmtDate = (d) => d ? String(d).slice(0, 10) : "";
+
+  function toast(msg, kind) {
+    const ic = { ok: "\u2713", err: "\u2715", warn: "!", info: "i" };
+    const el = document.createElement("div");
+    el.className = "toast toast-" + (kind || "info");
+    el.innerHTML = '<span class="toast-ic">' + (ic[kind] || "i") + '</span><span class="toast-tx">' + esc(msg) + '</span>';
+    document.getElementById("toastRoot").appendChild(el);
+    setTimeout(() => { el.classList.add("toast-out"); setTimeout(() => el.remove(), 380); }, 2800);
+  }
+
+  const STATUS = {
+    draft: ["gray", "ຮ່າງ"], posted: ["blue", "ບັນທຶກແລ້ວ"], paid: ["green", "ຈ່າຍແລ້ວ"],
+    partial: ["amber", "ຈ່າຍບາງສ່ວນ"], overdue: ["red", "ເກີນກຳນົດ"], void: ["gray", "ຍົກເລີກ"],
+    reversed: ["gray", "ກັບລາຍການ"], active: ["green", "ໃຊ້ງານ"], inactive: ["gray", "ປິດ"],
+    accepted: ["green", "ຕົກລົງ"], sent: ["blue", "ສົ່ງແລ້ວ"], lost: ["red", "ບໍ່ເອົາ"], open: ["amber", "ເປີດ"]
+  };
+  function statusBadge(s) {
+    const [c, t] = STATUS[s] || ["gray", s || "-"];
+    return `<span class="badge ${c}">${esc(t)}</span>`;
+  }
+
+  // Generic modal. content = html string, opts.onMount(root), opts.title, opts.wide
+  function modal(title, contentHTML, opts) {
+    opts = opts || {};
+    const root = document.getElementById("modalRoot");
+    root.innerHTML = `
+      <div class="modal-bg">
+        <div class="modal" style="max-width:${opts.wide ? "920px" : "640px"}">
+          <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+            <h3 class="font-semibold text-lg">${esc(title)}</h3>
+            <button data-close class="text-slate-400 hover:text-slate-700 text-xl leading-none">✕</button>
+          </div>
+          <div class="px-5 py-4" data-body>${contentHTML}</div>
+        </div>
+      </div>`;
+    const bg = root.querySelector(".modal-bg");
+    const close = () => { root.innerHTML = ""; };
+    bg.addEventListener("mousedown", e => { if (e.target === bg) close(); });
+    root.querySelector("[data-close]").addEventListener("click", close);
+    if (opts.onMount) opts.onMount(root.querySelector("[data-body]"), close);
+    return { root, close };
+  }
+
+  function confirmDialog(msg, onYes) {
+    modal("ຢືນຢັນ", `<div class="flex items-start gap-3"><div class="confirm-ic">!</div><p class="text-slate-600" style="padding-top:6px">${esc(msg)}</p></div>
+      <div class="flex justify-end gap-2 mt-5">
+        <button class="btn btn-ghost" data-no>ຍົກເລີກ</button>
+        <button class="btn btn-primary" data-yes>ຕົກລົງ</button>
+      </div>`, { onMount: (body, close) => {
+        body.querySelector("[data-no]").onclick = close;
+        body.querySelector("[data-yes]").onclick = () => { close(); onYes(); };
+      }});
+  }
+
+  // page header: primary actions stay visible; everything else folds into one "ເພີ່ມເຕີມ" menu
+  function pageHead(title, subtitle, actionsHTML) {
+    const parts = String(actionsHTML || "").match(/<(button|a)\b[^>]*>[\s\S]*?<\/\1>/g) || [];
+    const primary = parts.filter(x => /btn-primary/.test(x));
+    const rest = parts.filter(x => !/btn-primary/.test(x));
+    const more = rest.length ? `<details class="more"><summary class="btn btn-ghost">ເພີ່ມເຕີມ <span aria-hidden="true">▾</span></summary><div class="more-menu">${rest.join("")}</div></details>` : "";
+    return `<div class="page-head">
+      <div><h1 class="page-title">${esc(title)}</h1>
+      ${subtitle ? `<p class="page-sub">${esc(subtitle)}</p>` : ""}</div>
+      <div class="page-actions">${more}${primary.join("")}</div></div>`;
+  }
+  document.addEventListener("click", e => {
+    document.querySelectorAll("details.more[open]").forEach(d => { if (!d.contains(e.target) || e.target.closest(".more-menu button, .more-menu a")) d.removeAttribute("open"); });
+  });
+
+  function kpi(label, value, sub, color) {
+    return `<div class="kpi">
+      <div class="label">${esc(label)}</div>
+      <div class="value" style="color:${color || "#0f172a"}">${value}</div>
+      ${sub ? `<div class="hint mt-1">${sub}</div>` : ""}</div>`;
+  }
+
+  // Build a simple table. cols=[{h, key|render, cls}], rows=array
+  function table(cols, rows, opts) {
+    opts = opts || {};
+    const head = cols.map(c => `<th class="${c.cls || ""}">${esc(c.h)}</th>`).join("");
+    const body = rows.length ? rows.map(r => {
+      const tds = cols.map(c => {
+        const val = c.render ? c.render(r) : esc(r[c.key]);
+        return `<td class="${c.cls || ""}" data-label="${esc(c.h)}">${val}</td>`;
+      }).join("");
+      return `<tr ${opts.rowClick ? 'style="cursor:pointer"' : ""} data-id="${esc(r.id)}">${tds}</tr>`;
+    }).join("") : `<tr><td colspan="${cols.length}" class="text-center py-10"><p class="text-slate-400 mb-3">ຍັງບໍ່ມີຂໍ້ມູນ</p><button class="btn btn-primary" data-empty-act hidden></button></td></tr>`;
+    return `<div class="card overflow-hidden"><div class="tbl-wrap"><table class="data"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></div>`;
+  }
+  // empty-state button mirrors the page's primary action (label + click); hidden if the page has none
+  const fillEmpty = () => document.querySelectorAll("[data-empty-act]").forEach(b => {
+    const p = document.querySelector(".page-actions .btn-primary");
+    if (p && b.textContent !== p.textContent) { b.textContent = p.textContent; b.hidden = false; }
+  });
+  new MutationObserver(fillEmpty).observe(document.getElementById("view") || document.body, { childList: true, subtree: true });
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-empty-act]");
+    if (b) document.querySelector(".page-actions .btn-primary").click();
+  });
+  window.UI = { money, esc, today, fmtDate, toast, statusBadge, modal, confirmDialog, pageHead, kpi, table };
+})();
