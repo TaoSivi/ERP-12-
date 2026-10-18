@@ -23,6 +23,7 @@
       ["inventory", "", "📦 ສິນຄ້າຄົງເຫຼືອ"] ] },
     { group: "ເງິນ & ບັນຊີ", items: [
       ["banking", "", "🏦 ທະນາຄານ & ເງິນສົດ"],
+      ["advances", "", "💵 ເງິນແຮ"],
       ["gl", "", "📗 ບັນຊີແຍກປະເພດ"],
       ["assets", "", "🏗 ຊັບສິນຖາວອນ"],
       ["budget", "", "📊 ງົບປະມານ"],
@@ -39,7 +40,7 @@
       ["workflows", "", "🔁 ຂະບວນການເອກະສານ"],
       ["doctemplates", "", "📄 ແມ່ແບບເອກະສານ"] ] }
   ];
-  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","mytasks","disburse","requests","procure","invoices","bills","banking","gl","assets","budget","reports","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","mytasks","disburse","requests","procure","pos","customers","invoices","reports","docs","announce","tags","workflows","doctemplates"], Purchasing: ["dashboard","mytasks","disburse","requests","procure","vendors","bills","inventory","reports","docs","announce","tags","workflows","doctemplates"], Warehouse: ["dashboard","mytasks","disburse","requests","procure","inventory","reports","docs","announce","tags","workflows","doctemplates"], HR: ["dashboard","mytasks","disburse","requests","procure","payroll","reports","docs","announce","tags","workflows","doctemplates"], Cashier: ["dashboard","mytasks","disburse","requests","procure","pos","banking","reports","docs","announce","tags","workflows","doctemplates"], Manager: null, Auditor: ["dashboard","mytasks","requests","procure","gl","reports","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","mytasks","requests","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
+  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","mytasks","disburse","requests","procure","invoices","bills","banking","advances","gl","assets","budget","reports","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","mytasks","disburse","requests","procure","pos","customers","invoices","reports","docs","announce","tags","workflows","doctemplates"], Purchasing: ["dashboard","mytasks","disburse","requests","procure","vendors","bills","inventory","reports","docs","announce","tags","workflows","doctemplates"], Warehouse: ["dashboard","mytasks","disburse","requests","procure","inventory","reports","docs","announce","tags","workflows","doctemplates"], HR: ["dashboard","mytasks","disburse","requests","procure","payroll","reports","docs","announce","tags","workflows","doctemplates"], Cashier: ["dashboard","mytasks","disburse","requests","procure","pos","banking","advances","reports","docs","announce","tags","workflows","doctemplates"], Manager: null, Auditor: ["dashboard","mytasks","requests","procure","gl","reports","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","mytasks","requests","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
   // "Advanced mode" (Settings): shows the DMS menu and the niche accounting buttons (see css/styles.css .adv rules)
   function advancedOn() { const c = Store.get("settings", "company") || {}; return !!c.show_advanced; }
   function applyAdvanced() { document.body.classList.toggle("adv-on", advancedOn()); }
@@ -3534,6 +3535,63 @@
   }
 
   /* ================= ✅ ວຽກຂອງຂ້ອຍ (My Tasks) ================= */
+  /* ================= ເງິນແຮ: who holds how much, for how long ================= */
+  // One row per person. Source of truth is the request engine (ADV paid & not yet cleared by a CLR).
+  function advances() {
+    const today = UI.today(), DAY = 864e5;
+    const days = a => Math.max(0, Math.floor((Date.parse(today) - Date.parse(a.paid_at || a.date)) / DAY));
+    const open = Flows.openAdvances(), canNew = canDo("create", "advances");
+    const by = {};
+    open.forEach(a => { (by[a.payee] = by[a.payee] || []).push(a); });
+    const people = Object.keys(by).map(name => {
+      const list = by[name].sort((x, y) => (x.paid_at || "").localeCompare(y.paid_at || ""));
+      const total = Acc.round(list.reduce((s2, a) => s2 + Number(a.amount), 0));
+      const late = list.filter(a => a.due_clear && a.due_clear < today);
+      return { name, list, total, oldest: days(list[0]), late: late.length, lateAmt: Acc.round(late.reduce((s2, a) => s2 + Number(a.amount), 0)) };
+    }).sort((a, b) => b.total - a.total);
+    const totalAll = Acc.round(people.reduce((s2, p) => s2 + p.total, 0)), lateAll = Acc.round(people.reduce((s2, p) => s2 + p.lateAmt, 0));
+    const pending = Store.all("requests").filter(r => r.type === "ADV" && (r.stage === "approval" || r.stage === "payout")).length;
+    view().innerHTML = UI.pageHead("ເງິນແຮ", "ຕິດຕາມຜູ້ຖືເງິນແຮທີ່ຍັງຄ້າງເຄລຍ · ກຳນົດເຄລຍ " + Flows.settings().clear_days + " ວັນ",
+        `<button class="btn btn-primary btn-lg" id="adv-new" ${canNew ? "" : "hidden"}>＋ ເບີກເງິນແຮ</button>`) +
+      `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">${UI.kpi("ຍອດຄ້າງເຄລຍ", M(totalAll), people.length + " ຄົນ · " + open.length + " ໃບ", "#0f172a")}
+        ${UI.kpi("ເກີນກຳນົດ", M(lateAll), people.filter(p => p.late).length + " ຄົນ", lateAll ? "#b91c1c" : "#15803d")}
+        ${UI.kpi("ລໍອະນຸມັດ / ລໍຈ່າຍ", String(pending), "ຄຳຂໍເບີກທີ່ຍັງບໍ່ຈົບ", "#b45309")}
+        ${UI.kpi("ຜູ້ຖືສູງສຸດ", people[0] ? E(people[0].name) : "-", people[0] ? M(people[0].total) : "", "#0f172a")}</div>` +
+      (people.length ? UI.table([
+        { h: "ຜູ້ຖືເງິນແຮ", render: p => `<b>${E(p.name)}</b><div class="hint">${p.list.length} ໃບ</div>` },
+        { h: "ຍອດຄ້າງ", cls: "num", render: p => M(p.total) },
+        { h: "ເກົ່າສຸດ", cls: "num", render: p => p.oldest + " ວັນ" },
+        { h: "ສະຖານະ", render: p => p.late ? `<span class="chip s-bad">ເກີນກຳນົດ ${p.late} ໃບ · ${M(p.lateAmt)}</span>` : `<span class="chip s-done">ຢູ່ໃນກຳນົດ</span>` },
+        { h: "", render: p => `<button class="btn btn-primary btn-sm" data-adv="${E(p.name)}">ເບິ່ງ / ເຄລຍ</button> <button class="btn btn-ghost btn-sm" data-advp="${E(p.name)}">ພິມຢັ້ງຢືນຍອດ</button>` }
+      ], people) : `<div class="ac-empty">ບໍ່ມີເງິນແຮຄ້າງເຄລຍ</div>`);
+    const v = view(), byName = n => people.find(p => p.name === n);
+    const go = id => { location.hash = "#/requests?id=" + id; };
+    if (v.querySelector("#adv-new")) v.querySelector("#adv-new").onclick = () => FlowsUI.newRequest("ADV");
+    v.querySelectorAll("[data-adv]").forEach(b => b.onclick = () => advanceDetail(byName(b.dataset.adv), days, go));
+    v.querySelectorAll("[data-advp]").forEach(b => b.onclick = () => advanceConfirmPrint(byName(b.dataset.advp), today));
+  }
+  function advanceDetail(p, days, go) {
+    const today = UI.today();
+    UI.modal("ເງິນແຮ · " + p.name, `<p class="hint mb-2">ຍອດຄ້າງ <b>${M(p.total)}</b> · ${p.list.length} ໃບ</p>
+      <table class="data"><thead><tr><th>ເລກທີ</th><th>ຈຸດປະສົງ</th><th class="num">ຍອດ</th><th class="num">ຄ້າງ (ວັນ)</th><th>ກຳນົດເຄລຍ</th><th></th></tr></thead><tbody>
+      ${p.list.map(a => { const late = a.due_clear && a.due_clear < today; return `<tr><td><a class="text-brand-700" href="#/requests?id=${E(a.id)}" data-go="${E(a.id)}">${E(a.number)}</a></td><td>${E(a.purpose)}</td><td class="num">${M(a.amount)}</td><td class="num">${days(a)}</td>
+        <td>${late ? `<span class="chip s-bad">${E(a.due_clear)}</span>` : E(a.due_clear || "")}</td><td><button class="btn btn-primary btn-sm" data-clr="${E(a.id)}">ເຄລຍ</button></td></tr>`; }).join("")}
+      </tbody></table>`, { wide: true, onMount: (bd, close) => {
+        bd.querySelectorAll("[data-go]").forEach(a => a.onclick = e => { e.preventDefault(); close(); go(a.dataset.go); });
+        bd.querySelectorAll("[data-clr]").forEach(b => b.onclick = () => { close(); FlowsUI.newRequest("CLR", b.dataset.clr); });
+      } });
+  }
+  // ໃບຢັ້ງຢືນຍອດ: the holder signs that the balance is right (what the year-end audit asks for)
+  function advanceConfirmPrint(p, asOf) {
+    proPrint("ໃບຢັ້ງຢືນຍອດເງິນແຮ " + p.name, {
+      docTitle: "ໃບຢັ້ງຢືນຍອດເງິນແຮ", party: { title: "ຜູ້ຖືເງິນແຮ", name: p.name }, meta: [["ວັນທີ", asOf]],
+      cols: ["ເລກທີ", "ຈຸດປະສົງ", "ວັນທີເບີກ", "ກຳນົດເຄລຍ", "ຍອດ (₭)"],
+      rows: p.list.map(a => [E(a.number), E(a.purpose), E(UI.fmtDate(a.paid_at || a.date)), E(a.due_clear || ""), Math.round(a.amount).toLocaleString("en-US")]),
+      totals: [["ຍອດຄ້າງລວມ", Math.round(p.total).toLocaleString("en-US") + " ₭", true]],
+      note: "ຂ້າພະເຈົ້າຢືນຢັນວ່າຍອດເງິນແຮຄ້າງຂ້າງເທິງຖືກຕ້ອງ ແລະ ຈະເຄລຍພ້ອມໃບບິນຕາມກຳນົດ.", signLabels: ["ຜູ້ຖືເງິນແຮ", "ຜູ້ກວດ / ບັນຊີ"]
+    });
+  }
+
   /* ================= ຂໍເບີກ: one entry point for money requests ================= */
   // Pick what you need → fill the form → approvers sign → it posts itself. Engine and approval chain live in Flows.
   function disburse() {
@@ -3698,7 +3756,7 @@
     try { setTimeout(() => fableTour(), 800); } catch (e) {}
   }
 
-  const ROUTES = { disburse, procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };
+  const ROUTES = { advances, disburse, procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };
   function router() {
     const route = (location.hash.replace("#/", "") || "dashboard").split("?")[0];
     setActive(route);

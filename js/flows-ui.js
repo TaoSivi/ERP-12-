@@ -86,7 +86,7 @@
   }
 
   /* =================== NEW REQUEST =================== */
-  function newRequest(preset) {
+  function newRequest(preset, advId) {
     let type = preset || "PAY", vl = [{ account: "", memo: "", orig: 0 }], lines = [{ account: "5200", description: "", amount: 0, vat: false, receipt_no: "" }];
     const emps = Store.all("employees").map(e => e.name);
     const vends = Store.all("vendors");
@@ -133,6 +133,7 @@
             <div id="rq-pwrap"><label class="field">ຜູ້ສະໜອງ *</label><select class="input" id="rq-vendor">${vends.map(v => `<option value="${v.id}">${E(v.name)}</option>`).join("")}</select></div></div>` + linesTable();
           if (Flows.VDEFS[type]) f += genericFields(type);
           q("#rq-form").innerHTML = f;
+          if (type === "CLR" && advId && q("#rq-adv")) q("#rq-adv").value = advId;
           bindForm(); bindGeneric(); refreshChain();
         }
         // fields, currency + rate, project, lines and document checklist of a generic type.
