@@ -43,7 +43,31 @@
   function advancedOn() { const c = Store.get("settings", "company") || {}; return !!c.show_advanced; }
   function applyAdvanced() { document.body.classList.toggle("adv-on", advancedOn()); }
   function currentRole() { try { return localStorage.getItem("laobooks_role") || "Admin"; } catch (e) { return "Admin"; } }
-  function allowed(route) { const p = ROLE_PERMS[currentRole()]; return !p || p.indexOf(route) !== -1; }
+  Perms.configure({ base: ROLE_PERMS, modules: NAV.reduce((a, g) => a.concat(g.items.map(([route, , label]) => [route, label])), []) });
+  function allowed(route) { return Perms.can(currentRole(), route, "view"); }
+  function modOf() { return (location.hash.replace("#/", "") || "dashboard").split("?")[0]; }
+  // can the current role do `fn` (create/edit/post/delete/export) in the module on screen?
+  function canDo(fn, mod) { return Perms.can(currentRole(), mod || modOf(), fn); }
+  // hide buttons the role may not use, and refuse their clicks even if something re-shows them
+  function applyGates(root) {
+    const mod = modOf(), role = currentRole();
+    if (role === "Admin") return;
+    (root || document).querySelectorAll("button[id], a[id], [data-ue], [data-ut], [data-edit], [data-ud], [data-del], [data-delp]").forEach(el => {
+      const fn = Perms.classify(el);
+      if (fn && !Perms.can(role, mod, fn)) el.hidden = true;
+    });
+    // a "more" menu whose buttons are all hidden has nothing left to show
+    (root || document).querySelectorAll("details.more-menu").forEach(d => { if (!d.querySelector(".more-pop .btn:not([hidden])")) d.hidden = true; });
+  }
+  const FN_LABEL = { create: "ສ້າງ", edit: "ແກ້ໄຂ", post: "Post/ອະນຸມັດ", delete: "ລຶບ/Void", export: "Export/ພິມ" };
+  function installGates() {
+    document.addEventListener("click", e => {
+      const el = e.target.closest && e.target.closest("button[id], a[id], [data-ue], [data-ut], [data-edit], [data-ud], [data-del], [data-delp]");
+      const fn = el && Perms.classify(el);
+      if (fn && !Perms.can(currentRole(), modOf(), fn)) { e.preventDefault(); e.stopImmediatePropagation(); UI.toast("ບົດບາດ " + currentRole() + " ບໍ່ມີສິດ " + FN_LABEL[fn] + " ໃນໂມດູນນີ້", "warn"); }
+    }, true);
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) applyGates(n); }))).observe(document.body, { childList: true, subtree: true });
+  }
   function buildNav() {
     const nav = document.getElementById("nav");
     let html = NAV.map(g => {
@@ -3409,7 +3433,7 @@
     if (userFilter.status) rows = rows.filter(u => (u.status || "active") === userFilter.status);
     const total = Store.all("users").length, act = Store.where("users", u => (u.status || "active") === "active").length;
     view().innerHTML = UI.pageHead("👥 ຈັດການຜູ້ໃຊ້", total + " ທັງໝົດ · " + act + " ໃຊ້ງານ",
-      `<button class="btn btn-ghost" id="us-inv">🔗 ລະຫັດເຊີນ</button><button class="btn btn-primary" id="us-add">+ ເພີ່ມຜູ້ໃຊ້</button>`) +
+      `<button class="btn btn-ghost" id="us-perms">🔐 ຕັ້ງສິດແຕ່ລະຟັງຊັນ</button><button class="btn btn-ghost" id="us-inv">🔗 ລະຫັດເຊີນ</button><button class="btn btn-primary" id="us-add">+ ເພີ່ມຜູ້ໃຊ້</button>`) +
       `<div class="flex flex-wrap gap-2 mb-4 items-center text-sm">
         <select class="input" id="us-frole" style="width:auto"><option value="">ທຸກສິດ</option>${roles.map(r => `<option value="${r}" ${userFilter.role === r ? "selected" : ""}>${E(r)}</option>`).join("")}</select>
         <select class="input" id="us-fstat" style="width:auto"><option value="">ທຸກສະຖານະ</option><option value="active" ${userFilter.status === "active" ? "selected" : ""}>ໃຊ້ງານ</option><option value="inactive" ${userFilter.status === "inactive" ? "selected" : ""}>ປິດ</option></select>
@@ -3426,10 +3450,53 @@
     v.querySelector("#us-frole").onchange = e => { userFilter.role = e.target.value; usersPage(); };
     v.querySelector("#us-fstat").onchange = e => { userFilter.status = e.target.value; usersPage(); };
     v.querySelector("#us-inv").onclick = () => inviteCodeModal();
+    v.querySelector("#us-perms").onclick = () => permsEditorModal();
     v.querySelector("#us-add").onclick = () => userEditModal();
     v.querySelectorAll("[data-ue]").forEach(b => b.onclick = () => userEditModal(Store.get("users", b.dataset.ue)));
     v.querySelectorAll("[data-ut]").forEach(b => b.onclick = () => { const u = Store.get("users", b.dataset.ut); Store.update("users", u.id, { status: (u.status || "active") === "active" ? "inactive" : "active" }); usersPage(); });
     v.querySelectorAll("[data-ud]").forEach(b => b.onclick = () => { const u = Store.get("users", b.dataset.ud); UI.confirmDialog("ຖອນຜູ້ໃຊ້ " + u.name + "?", () => { Store.remove("users", u.id); usersPage(); }); });
+  }
+  // Admin: tick which functions each role may use in each module
+  function permsEditorModal(roleSel) {
+    const roles = Object.keys(ROLE_PERMS), mods = Perms.modules();
+    const role = roleSel || roles.filter(r => r !== "Admin")[0];
+    const locked = role === "Admin";
+    const rows = mods.map(([m, label]) => {
+      const cur = Perms.get(role, m);
+      return `<tr><td>${E(label)}</td>` + Perms.FUNCS.map(([f]) => `<td class="num"><input type="checkbox" data-m="${m}" data-f="${f}" ${cur.indexOf(f) !== -1 ? "checked" : ""} ${locked || (m === "dashboard" && f === "view") ? "disabled" : ""}></td>`).join("") + `</tr>`;
+    }).join("");
+    UI.modal("🔐 ຕັ້ງສິດແຕ່ລະຟັງຊັນ", `
+      <div class="flex flex-wrap items-center gap-2 mb-3">
+        <label class="field" style="margin:0">ບົດບາດ</label>
+        <select class="input" id="pe-role" style="width:auto">${roles.map(r => `<option value="${r}" ${r === role ? "selected" : ""}>${E(r)}${Perms.isCustom(r) ? " *" : ""}</option>`).join("")}</select>
+        <span class="hint">${locked ? "Admin ມີສິດເຕັມສະເໝີ ແກ້ບໍ່ໄດ້" : "* = ຖືກປັບແຕ່ງແລ້ວ. ຕິກ \"ເບິ່ງ\" ອອກ = ເຊື່ອງໂມດູນນັ້ນ"}</span>
+      </div>
+      <div class="overflow-x-auto"><table class="data"><thead><tr><th>ໂມດູນ</th>${Perms.FUNCS.map(([, l]) => `<th class="num" style="font-size:12px">${E(l)}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="flex justify-between gap-2 mt-4">
+        <button class="btn btn-ghost" id="pe-reset" ${locked ? "disabled" : ""}>ຄືນຄ່າເລີ່ມຕົ້ນ</button>
+        <div class="flex gap-2"><button class="btn btn-ghost" data-cancel>ປິດ</button><button class="btn btn-primary" id="pe-save" ${locked ? "disabled" : ""}>ບັນທຶກ</button></div>
+      </div>
+      <p class="hint mt-3">ສິດນີ້ຄວບຄຸມໜ້າຈໍ (ເຊື່ອງປຸ່ມ + ປະຕິເສດການກົດ). ບົດບາດຂອງຜູ້ໃຊ້ຍັງເກັບໃນ browser ສະນັ້ນບໍ່ແມ່ນຄວາມປອດໄພເຕັມຮູບແບບ ຈົນກວ່າ backend ຈະກວດສິດ.</p>`,
+      { wide: true, onMount: (body, close) => {
+        body.querySelector("#pe-role").onchange = e => permsEditorModal(e.target.value);
+        body.querySelector("[data-cancel]").onclick = close;
+        // turning "view" off clears the rest; ticking any function turns "view" on
+        body.querySelectorAll("input[data-m]").forEach(cb => cb.onchange = () => {
+          const m = cb.dataset.m, box = f => body.querySelector(`input[data-m="${m}"][data-f="${f}"]`);
+          if (cb.dataset.f === "view" && !cb.checked) Perms.ALL.forEach(f => { box(f).checked = false; });
+          else if (cb.checked) box("view").checked = true;
+        });
+        body.querySelector("#pe-reset").onclick = () => UI.confirmDialog("ຄືນສິດຂອງ " + role + " ເປັນຄ່າເລີ່ມຕົ້ນ?", () => { Perms.reset(role); Acc.audit("edit", "role_perms", role, "reset"); permsEditorModal(role); UI.toast("ຄືນຄ່າແລ້ວ", "ok"); });
+        body.querySelector("#pe-save").onclick = () => {
+          let n = 0;
+          mods.forEach(([m]) => {
+            const next = Perms.ALL.filter(f => body.querySelector(`input[data-m="${m}"][data-f="${f}"]`).checked);
+            if (next.join() !== Perms.get(role, m).join()) { Perms.set(role, m, next); n++; }
+          });
+          Acc.audit("edit", "role_perms", role, n + " modules");
+          buildNav(); permsEditorModal(role); UI.toast("ບັນທຶກສິດ " + role + " ແລ້ວ (" + n + " ໂມດູນ)", "ok");
+        };
+      } });
   }
   function userEditModal(u) {
     const roles = Object.keys(ROLE_PERMS);
@@ -3589,6 +3656,10 @@
     const route = (location.hash.replace("#/", "") || "dashboard").split("?")[0];
     setActive(route);
     document.getElementById("sidebar").classList.add("-translate-x-full");
+    if (!allowed(route)) {
+      view().innerHTML = UI.pageHead("ບໍ່ມີສິດເຂົ້າ", "", "") + `<div class="card p-10 text-center text-slate-500">ບົດບາດ <b>${E(currentRole())}</b> ບໍ່ມີສິດເຂົ້າໂມດູນນີ້<div class="mt-4"><a class="btn btn-primary" href="#/dashboard">ກັບໜ້າຫຼັກ</a></div></div>`;
+      return;
+    }
     (ROUTES[route] || dashboard)();
     window.scrollTo(0, 0);
   }
@@ -3608,8 +3679,8 @@
 
   async function init() {
     document.addEventListener("click", e => document.querySelectorAll("details.more-menu[open]").forEach(d => { if (!d.contains(e.target) || e.target.closest(".more-pop .btn")) d.removeAttribute("open"); }));
-    window.AppCtx = { currentRole, canApprove, guardedPost, poPrint };
-    buildNav(); setupSearch();
+    window.AppCtx = { currentRole, canApprove, guardedPost, poPrint, canDo };
+    installGates(); buildNav(); setupSearch();
     document.getElementById("menuBtn").onclick = () => document.getElementById("sidebar").classList.toggle("-translate-x-full");
     document.getElementById("view").addEventListener("click", e => { const b = e.target.closest("[data-tool]"); if (b && TOOLS[b.dataset.tool]) TOOLS[b.dataset.tool](); });
     document.getElementById("nav").addEventListener("click", e => { const b = e.target.closest("[data-tool]"); if (b && TOOLS[b.dataset.tool]) TOOLS[b.dataset.tool](); });
