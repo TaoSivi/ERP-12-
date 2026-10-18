@@ -24,6 +24,7 @@
     { group: "ເງິນ & ບັນຊີ", items: [
       ["banking", "", "🏦 ທະນາຄານ & ເງິນສົດ"],
       ["advances", "", "💵 ເງິນແຮ"],
+      ["posin", "", "🔗 ຮັບຈາກ POS"],
       ["gl", "", "📗 ບັນຊີແຍກປະເພດ"],
       ["assets", "", "🏗 ຊັບສິນຖາວອນ"],
       ["budget", "", "📊 ງົບປະມານ"],
@@ -40,7 +41,7 @@
       ["workflows", "", "🔁 ຂະບວນການເອກະສານ"],
       ["doctemplates", "", "📄 ແມ່ແບບເອກະສານ"] ] }
   ];
-  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","mytasks","disburse","requests","procure","invoices","bills","banking","advances","gl","assets","budget","reports","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","mytasks","disburse","requests","procure","pos","customers","invoices","reports","docs","announce","tags","workflows","doctemplates"], Purchasing: ["dashboard","mytasks","disburse","requests","procure","vendors","bills","inventory","reports","docs","announce","tags","workflows","doctemplates"], Warehouse: ["dashboard","mytasks","disburse","requests","procure","inventory","reports","docs","announce","tags","workflows","doctemplates"], HR: ["dashboard","mytasks","disburse","requests","procure","payroll","reports","docs","announce","tags","workflows","doctemplates"], Cashier: ["dashboard","mytasks","disburse","requests","procure","pos","banking","advances","reports","docs","announce","tags","workflows","doctemplates"], Manager: null, Auditor: ["dashboard","mytasks","requests","procure","gl","reports","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","mytasks","requests","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
+  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","mytasks","disburse","requests","procure","invoices","bills","banking","advances","posin","gl","assets","budget","reports","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","mytasks","disburse","requests","procure","pos","customers","invoices","reports","docs","announce","tags","workflows","doctemplates"], Purchasing: ["dashboard","mytasks","disburse","requests","procure","vendors","bills","inventory","reports","docs","announce","tags","workflows","doctemplates"], Warehouse: ["dashboard","mytasks","disburse","requests","procure","inventory","reports","docs","announce","tags","workflows","doctemplates"], HR: ["dashboard","mytasks","disburse","requests","procure","payroll","reports","docs","announce","tags","workflows","doctemplates"], Cashier: ["dashboard","mytasks","disburse","requests","procure","pos","banking","advances","posin","reports","docs","announce","tags","workflows","doctemplates"], Manager: null, Auditor: ["dashboard","mytasks","requests","procure","gl","reports","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","mytasks","requests","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
   // "Advanced mode" (Settings): shows the DMS menu and the niche accounting buttons (see css/styles.css .adv rules)
   function advancedOn() { const c = Store.get("settings", "company") || {}; return !!c.show_advanced; }
   function applyAdvanced() { document.body.classList.toggle("adv-on", advancedOn()); }
@@ -3678,6 +3679,8 @@
     const role = currentRole();
     const groups = [];
     const now = new Date();
+    // POS days waiting for a person (held / blocked)
+    if (allowed("posin")) { const pd = Store.where("pos_days", x => x.status === "held" || x.status === "blocked"); if (pd.length) groups.push({ ic: "🔗", t: "ຍອດຂາຍ POS ລໍກວດ / ຕິດຂັດ", items: pd.slice(0, 8).map(x => ({ label: x.date + " " + x.branch_name + " — " + (x.issues.find(i => i.level !== "info") || { msg: "" }).msg, go: "#/posin" })) }); }
     // ອະນຸມັດເອກະສານ (ຖ້າເປັນຜູ້ອະນຸມັດ)
     const docAppr = Store.where("documents", x => x.status === "pending" && docCanApproveThis(x));
     if (docAppr.length) groups.push({ ic: "📁", t: "ເອກະສານລໍທ່ານອະນຸມັດ", items: docAppr.map(x => ({ label: x.name, go: "#/docs" })) });
@@ -3805,7 +3808,7 @@
     try { setTimeout(() => fableTour(), 800); } catch (e) {}
   }
 
-  const ROUTES = { advances, disburse, procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };
+  const ROUTES = { posin: () => PosinUI.page(), advances, disburse, procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };
   function router() {
     const route = (location.hash.replace("#/", "") || "dashboard").split("?")[0];
     setActive(route);
@@ -3844,6 +3847,8 @@
     await boot();
     window.addEventListener("hashchange", router);
     router();
+    // ST POS → ERP: pull the closed days and post the clean ones by themselves
+    try { Posin.autoOnOpen(currentRole()).then(r => { if (r && (r.posted || r.held || r.blocked || r.adjusted)) { UI.toast("POS: ລົງບັນຊີ " + r.posted + " ມື້" + (r.held ? " · ລໍກວດ " + r.held : "") + (r.blocked ? " · ຕິດຂັດ " + r.blocked : "") + (r.adjusted ? " · ປັບ " + r.adjusted : ""), r.blocked || r.held ? "warn" : "ok"); if (location.hash.indexOf("#/posin") === 0) PosinUI.page(); } }).catch(e => console.warn("POS:", e.message)); } catch (e) { console.warn("POS:", e.message); }
   }
   window.addEventListener("DOMContentLoaded", init);
 })();

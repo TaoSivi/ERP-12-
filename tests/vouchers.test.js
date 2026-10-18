@@ -5,7 +5,6 @@ const { freshApp } = require("./helpers");
 const DOCS = { slip: { ok: true, ref: "SLIP-001" } };
 async function app() {
   const c = await freshApp();
-  c.Store.insert("accounts", { id: "acc_1110", code: "1110", name: "ເງິນສົດໜ້າຮ້ານ", type: "Asset", is_header: 0, is_active: 1 }); // second cash/bank account (the engine now refuses header accounts)
   const cb = Array.from(c.Flows.cashBankAccounts()).map(a => a.code);
   assert.ok(cb.length >= 1, "demo CoA has at least one cash/bank account");
   const exp = Array.from(c.Store.where("accounts", a => a.type === "Expense" && !a.is_header))[0].code;

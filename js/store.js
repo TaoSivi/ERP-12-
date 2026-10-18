@@ -14,7 +14,7 @@
     "credit_notes","cn_lines","debit_notes","dn_lines","prepaids","deferreds","fx_rates",
     "cost_centres","projects",
     "purchase_requisitions","pr_lines","recurring","bank_statements","locations","stock_serials","stock_transfers","leaves",
-    "companies","salary_revisions",
+    "companies","salary_revisions","pos_days",
     "sales_orders","so_lines","deliveries","delivery_lines","users","holidays",
     "boms","bom_lines",
     "employees","payroll","assets","budgets","audit_log",
@@ -124,6 +124,14 @@
 
   // Accounts added after v1.7 — created on existing databases too (never renamed or removed)
   const EXTRA_ACCOUNTS = [
+    ["1110","ເງິນສົດໜ້າຮ້ານ (ລິ້ນຊັກ)","Asset"],
+    ["1120","ລໍເຂົ້າທະນາຄານ (ບັດ/QR)","Asset"],
+    ["2170","ທິບຄ້າງຈ່າຍພະນັກງານ","Liability"],
+    ["4110","ລາຍຮັບ ອາຫານ","Revenue"],
+    ["4120","ລາຍຮັບ ເຄື່ອງດື່ມ","Revenue"],
+    ["4300","ຄ່າບໍລິການ (Service charge)","Revenue"],
+    ["5290","ຂອງເສຍ / ຂາດສາງ","Expense"],
+    ["5295","ເງິນສົດເກີນ / ຂາດ","Expense"],
     ["1450","ເງິນສຳຮອງພະນັກງານ (Employee advance)","Asset"],
     ["2150","ຄ້າງຈ່າຍພະນັກງານ (ເບີກຄືນ)","Liability"],
     ["2160","ຄ່າໃຊ້ຈ່າຍຄ້າງຈ່າຍ (Accrued)","Liability"],

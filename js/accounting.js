@@ -528,7 +528,7 @@
     const gl = new Set(Store.all("bank_accounts").map(b => String(b.gl_account)));
     return new Set(Store.where("accounts", a => !Number(a.is_header) && a.type === "Asset" && (gl.has(a.code) || /ເງິນສົດ|ເງິນຝາກ|ທະນາຄານ|cash|bank/i.test(a.name))).map(a => a.code));
   }
-  const CF_LABEL = { POS_DAILY: "ຂາຍໜ້າຮ້ານ (POS)", PAYMENT: "ຮັບ/ຈ່າຍ ຕາມເອກະສານ (Invoice/Bill)", REQUEST: "ຄຳຂໍເບີກ / ຈ່າຍ", PAYROLL: "ເງິນເດືອນ", GRN: "ຮັບເຄື່ອງ", MANUAL: "Journal ມື", QUICK: "Quick Record", OPENING: "ຍອດຍົກມາ", PROFIT_TAX: "ອາກອນ", WHT: "ອາກອນ", ASSET: "ຊື້ຊັບສິນ" };
+  const CF_LABEL = { POS_DAILY: "ຂາຍໜ້າຮ້ານ (POS)", POS_ADJ: "ປັບຍອດ POS (POS ແກ້ໄຂພາຍຫຼັງ)", PAYMENT: "ຮັບ/ຈ່າຍ ຕາມເອກະສານ (Invoice/Bill)", REQUEST: "ຄຳຂໍເບີກ / ຈ່າຍ", PAYROLL: "ເງິນເດືອນ", GRN: "ຮັບເຄື່ອງ", MANUAL: "Journal ມື", QUICK: "Quick Record", OPENING: "ຍອດຍົກມາ", PROFIT_TAX: "ອາກອນ", WHT: "ອາກອນ", ASSET: "ຊື້ຊັບສິນ" };
   function cashFlowGL(from, to) {
     const cash = cashAccountCodes(), f = from || "0000-00-00", t = to || "9999-12-31", acct = {};
     Store.all("accounts").forEach(a => { acct[a.code] = a; });
