@@ -249,7 +249,7 @@
       total += val;
       Store.insert("grn_lines", { grn_id: grn.id, po_line_id: l.id, qty, unit_cost: Number(l.price) });
       Store.update("po_lines", l.id, { received_qty: Number(l.received_qty || 0) + qty });
-      if (l.kind === "stock" && l.item_id) Acc.recordMove(l.item_id, "in", qty, Number(l.price), "GRN", grn.id);
+      if (l.kind === "stock" && l.item_id) Acc.recordMove(l.item_id, "in", qty, Number(l.price), "GRN", grn.id, date);
       if (l.kind === "asset") Store.insert("assets", { name: l.description, category: "ຈາກການຈັດຊື້", cost: val, life_months: 60, date, method: "straight", acc_dep: 0, status: "active", source: "GRN", grn_id: grn.id });
       jl.push({ account: debitAccountFor(l), debit: val, credit: 0, memo: l.description });
     });

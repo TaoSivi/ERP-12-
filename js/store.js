@@ -163,7 +163,7 @@
   }
 
   function seedDemo() {
-    if (!ERP_CONFIG.SEED_DEMO_DATA) return;
+    if (!ERP_CONFIG.SEED_DEMO_DATA || localStorage.getItem("laobooks_no_seed")) return; // "start empty" sets the flag
     if (DB.customers.length || DB.items.length) return;
     DB.customers.push({ id:uid("cust"), name:"ຮ້ານ ຄຳໃບ", tin:"2233445566", phone:"020 5555 1111", email:"khambai@example.la", address:"ນະຄອນຫຼວງວຽງຈັນ", currency:"LAK", terms:30, ar_account:"1200", credit_limit:50000000, status:"active", created_at:new Date().toISOString() });
     DB.customers.push({ id:uid("cust"), name:"ບໍລິສັດ ພູສີ ຈຳກັດ", tin:"9988776655", phone:"020 7777 2222", email:"phousi@example.la", address:"ຫຼວງພະບາງ", currency:"LAK", terms:15, ar_account:"1200", credit_limit:30000000, status:"active", created_at:new Date().toISOString() });
@@ -238,7 +238,8 @@
     },
     uid,
     // wipe demo data (only local)
-    resetDemo() { localStorage.removeItem(LS_KEY); }
+    // empty = true → also skip the sample customers/items on the next start (a real, blank company)
+    resetDemo(empty) { localStorage.removeItem(LS_KEY); if (empty) localStorage.setItem("laobooks_no_seed", "1"); else localStorage.removeItem("laobooks_no_seed"); }
   };
 
   window.Store = Store;

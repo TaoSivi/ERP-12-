@@ -52,7 +52,7 @@
   // Rebuild remaining lots for an item by replaying stock_moves in order.
   function lotsFor(itemId) {
     const moves = Store.where("stock_moves", m => m.item_id === itemId)
-      .sort((a, b) => (a.date + (a.seq||0)).localeCompare(b.date + (b.seq||0)));
+      .sort((a, b) => (Number(a.seq) || 0) - (Number(b.seq) || 0)); // replay in ENTRY order (the order stock was really consumed); seq is numeric — as text "…18"+"10" sorted before "…18"+"9"
     const lots = [];
     moves.forEach(m => {
       if (m.type === "in") lots.push({ qty: Number(m.qty), cost: Number(m.unit_cost) });
@@ -87,10 +87,10 @@
     }
     return round(cogs);
   }
-  function recordMove(itemId, type, qty, unitCost, refType, refId) {
+  function recordMove(itemId, type, qty, unitCost, refType, refId, date) {
     const seq = Store.all("stock_moves").length + 1;
     Store.insert("stock_moves", {
-      date: new Date().toISOString().slice(0, 10),
+      date: date || new Date().toISOString().slice(0, 10),
       item_id: itemId, type, qty: Number(qty), unit_cost: Number(unitCost) || 0,
       ref_type: refType, ref_id: refId, seq
     });
@@ -116,6 +116,13 @@
   /* ---------- Journal ---------- */
   // lines: [{account: code, debit, credit, memo}]
   function postJournal({ date, source_type, source_id, memo, lines }) {
+    // every line must hit a real, postable account with a non-negative amount (the form UIs enforce this, the engine must too)
+    (lines || []).forEach(l => {
+      const a = acc(l.account);
+      if (!a) throw new Error("ບໍ່ພົບບັນຊີ " + l.account);
+      if (Number(a.is_header)) throw new Error("ລົງບັນຊີໃສ່ບັນຊີຫົວໝວດບໍ່ໄດ້: " + a.code + " " + a.name);
+      if ((Number(l.debit) || 0) < 0 || (Number(l.credit) || 0) < 0) throw new Error("ຍອດ Dr/Cr ຕິດລົບບໍ່ໄດ້ (" + a.code + ")");
+    });
     const cleaned = lines
       .map(l => ({ account: String(l.account), account_name: accName(l.account), debit: round(l.debit || 0), credit: round(l.credit || 0), memo: l.memo || "" }))
       .filter(l => l.debit || l.credit);
@@ -211,7 +218,7 @@
         const cogs = computeCOGS(it.id, l.qty);
         if (cogs) {
           totalCogs += cogs;
-          recordMove(it.id, "out", l.qty, cogs / (Number(l.qty) || 1), "INVOICE", inv.id);
+          recordMove(it.id, "out", l.qty, cogs / (Number(l.qty) || 1), "INVOICE", inv.id, inv.date);
         }
       }
     });
@@ -249,7 +256,7 @@
       const a = l.account_id || "5200";
       jl.push({ account: a, debit: scale(net), credit: 0, memo: l.description || "ຄ່າໃຊ້ຈ່າຍ" });
       // if expense account is inventory, add stock
-      if (a === "1300" && l.item_id) recordMove(l.item_id, "in", l.qty, l.price, "BILL", bill.id);
+      if (a === "1300" && l.item_id) recordMove(l.item_id, "in", l.qty, l.price, "BILL", bill.id, bill.date);
     });
     if (t.vat) jl.push({ account: PA("VAT_IN"), debit: scale(t.vat), credit: 0, memo: "VAT ຊື້" });
     jl.push({ account: PA("AP"), debit: 0, credit: scale(t.total), memo: "ເຈົ້າໜີ້ " + bill.number });
@@ -264,6 +271,10 @@
     const inv = Store.get("invoices", invoice_id);
     const bank = Store.get("bank_accounts", bank_id);
     const amt = round(amount);
+    if (!inv || !bank) throw new Error("ບໍ່ພົບ Invoice ຫຼື ບັນຊີທະນາຄານ");
+    if (!(amt > 0)) throw new Error("ຈຳນວນເງິນຕ້ອງ > 0");
+    const open = round(Number(inv.total) - (Number(inv.paid) || 0));
+    if (amt > open + 0.5) throw new Error("ຮັບເກີນຍອດຄ້າງ (ຄ້າງ " + open + ")");
     const pay = Store.insert("payments", {
       number: nextNumber("RC", "payments", date), date, type: "receive",
       party_type: "customer", party_id: inv.customer_id, bank_account: bank_id,
@@ -280,6 +291,10 @@
     const bill = Store.get("bills", bill_id);
     const bank = Store.get("bank_accounts", bank_id);
     const amt = round(amount);
+    if (!bill || !bank) throw new Error("ບໍ່ພົບ Bill ຫຼື ບັນຊີທະນາຄານ");
+    if (!(amt > 0)) throw new Error("ຈຳນວນເງິນຕ້ອງ > 0");
+    const open = round(Number(bill.total) - (Number(bill.paid) || 0));
+    if (amt > open + 0.5) throw new Error("ຈ່າຍເກີນຍອດຄ້າງ (ຄ້າງ " + open + ")");
     const pay = Store.insert("payments", {
       number: nextNumber("PV", "payments", date), date, type: "pay",
       party_type: "vendor", party_id: bill.vendor_id, bank_account: bank_id,
@@ -380,7 +395,7 @@
     lines.forEach(l => {
       const it = Store.get("items", l.item_id);
       total += (Number(l.qty) || 0) * (Number(l.price) || 0);
-      if (it && it.type === "stock") recordMove(it.id, "out", l.qty, l.price, "DN", dn.id);
+      if (it && it.type === "stock") recordMove(it.id, "out", l.qty, l.price, "DN", dn.id, dn.date);
     });
     const jl = [
       { account: PA("AP"), debit: round(total), credit: 0, memo: "ຫຼຸດເຈົ້າໜີ້ DN " + dn.number },
@@ -416,16 +431,18 @@
   }
 
   /* ---------- Stock adjustment ---------- */
-  function stockAdjust({ item_id, qtyDelta, reason, date }) {
+  // kind "usage" = ingredients/goods consumed in the business (→ COGS 5100); default = loss / count difference (→ general expense)
+  function stockAdjust({ item_id, qtyDelta, reason, date, kind }) {
     assertOpen(date);
     const it = Store.get("items", item_id);
     const cost = Number(it.avg_cost) || 0;
     const value = round(Math.abs(qtyDelta) * cost);
-    if (qtyDelta >= 0) recordMove(item_id, "in", qtyDelta, cost, "ADJUST", "");
-    else recordMove(item_id, "out", -qtyDelta, cost, "ADJUST", "");
+    const exp = kind === "usage" ? PA("COGS") : PA("GEN_EXP");
+    if (qtyDelta >= 0) recordMove(item_id, "in", qtyDelta, cost, "ADJUST", "", date);
+    else recordMove(item_id, "out", -qtyDelta, cost, "ADJUST", "", date);
     const jl = qtyDelta >= 0
-      ? [{ account: PA("INV"), debit: value, credit: 0, memo: "ປັບເພີ່ມ stock" }, { account: PA("GEN_EXP"), debit: 0, credit: value, memo: reason || "ປັບ stock" }]
-      : [{ account: PA("GEN_EXP"), debit: value, credit: 0, memo: reason || "ປັບຫຼຸດ stock" }, { account: PA("INV"), debit: 0, credit: value, memo: "ປັບຫຼຸດ stock" }];
+      ? [{ account: PA("INV"), debit: value, credit: 0, memo: "ປັບເພີ່ມ stock" }, { account: exp, debit: 0, credit: value, memo: reason || "ປັບ stock" }]
+      : [{ account: exp, debit: value, credit: 0, memo: reason || "ປັບຫຼຸດ stock" }, { account: PA("INV"), debit: 0, credit: value, memo: "ປັບຫຼຸດ stock" }];
     if (value) postJournal({ date: date || new Date().toISOString().slice(0, 10), source_type: "STOCK_ADJ", source_id: item_id, memo: "ປັບ stock " + it.name, lines: jl });
     audit("adjust", "items", item_id, (qtyDelta >= 0 ? "+" : "") + qtyDelta + " " + (reason || ""));
   }
@@ -502,6 +519,38 @@
     const inflow = Store.where("payments", p => p.type === "receive").reduce((s, p) => s + Number(p.amount), 0);
     const outflow = Store.where("payments", p => p.type === "pay").reduce((s, p) => s + Number(p.amount), 0);
     return { inflow: round(inflow), outflow: round(outflow), net: round(inflow - outflow) };
+  }
+
+  /* ---------- Cash flow from the LEDGER (direct method) ----------
+     Every journal that touches a cash/bank account counts, whatever created it (POS summary, request,
+     payroll, manual entry, payment). The old report only summed the payments table and missed all of these. */
+  function cashAccountCodes() {
+    const gl = new Set(Store.all("bank_accounts").map(b => String(b.gl_account)));
+    return new Set(Store.where("accounts", a => !Number(a.is_header) && a.type === "Asset" && (gl.has(a.code) || /ເງິນສົດ|ເງິນຝາກ|ທະນາຄານ|cash|bank/i.test(a.name))).map(a => a.code));
+  }
+  const CF_LABEL = { POS_DAILY: "ຂາຍໜ້າຮ້ານ (POS)", PAYMENT: "ຮັບ/ຈ່າຍ ຕາມເອກະສານ (Invoice/Bill)", REQUEST: "ຄຳຂໍເບີກ / ຈ່າຍ", PAYROLL: "ເງິນເດືອນ", GRN: "ຮັບເຄື່ອງ", MANUAL: "Journal ມື", QUICK: "Quick Record", OPENING: "ຍອດຍົກມາ", PROFIT_TAX: "ອາກອນ", WHT: "ອາກອນ", ASSET: "ຊື້ຊັບສິນ" };
+  function cashFlowGL(from, to) {
+    const cash = cashAccountCodes(), f = from || "0000-00-00", t = to || "9999-12-31", acct = {};
+    Store.all("accounts").forEach(a => { acct[a.code] = a; });
+    const rows = {}; let opening = 0, closing = 0;
+    Store.all("journal_entries").forEach(j => {
+      if (j.status === "void") return;
+      const ls = Store.where("journal_lines", l => l.je_id === j.id);
+      const net = ls.filter(l => cash.has(String(l.account))).reduce((x, l) => x + (Number(l.debit) || 0) - (Number(l.credit) || 0), 0);
+      if (!net) return;
+      if (j.date < f) { opening += net; return; }
+      if (j.date > t) return;
+      closing += net;
+      const other = ls.filter(l => !cash.has(String(l.account)));
+      const section = other.some(l => /^17/.test(String(l.account))) ? "ລົງທຶນ (ຊັບສິນຖາວອນ)" : other.some(l => (acct[l.account] || {}).type === "Equity") ? "ການເງິນ (ທຶນ / ກູ້ຢືມ)" : "ດຳເນີນງານ";
+      const label = CF_LABEL[j.source_type] || j.source_type || "ອື່ນໆ";
+      const k = section + "|" + label;
+      rows[k] = rows[k] || { section, label, inflow: 0, outflow: 0 };
+      if (net > 0) rows[k].inflow += net; else rows[k].outflow += -net;
+    });
+    const list = Object.values(rows).map(r => ({ section: r.section, label: r.label, inflow: round(r.inflow), outflow: round(r.outflow) }));
+    const inflow = round(list.reduce((s2, r) => s2 + r.inflow, 0)), outflow = round(list.reduce((s2, r) => s2 + r.outflow, 0));
+    return { opening: round(opening), rows: list, inflow, outflow, net: round(inflow - outflow), closing: round(opening + inflow - outflow) };
   }
 
   /* ---------- Bad debt write-off ---------- */
@@ -657,7 +706,7 @@
     arOutstanding, apOutstanding, cashBalance, aging, audit,
     postCreditNote, postDebitNote, bankTransfer, customerAdvance, stockAdjust,
     disposeAsset, capitalisePrepaid, amortisePrepaid, bookDeferred, recogniseDeferred,
-    yearEndClose, cashFlow,
+    yearEndClose, cashFlow, cashFlowGL, cashAccountCodes,
     writeOffBadDebt, fxAdjust, landedCost, computeECL, recogniseECL, nrvWritedown, impairAsset, workingCapital,
     depreciateCatchUp, projectPL,
     voidInvoice, voidBill, voidPayment, voidGRN,

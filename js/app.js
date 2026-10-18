@@ -794,7 +794,21 @@
     view().querySelector("#aimport").onclick = () => importAssetsX();
     view().querySelector("#prepaid").onclick = () => prepaidModal();
     view().querySelector("#deferred").onclick = () => deferredModal();
-    view().querySelector("#add").onclick = () => formModal("ລົງທະບຽນຊັບສິນ", [{ name: "name", label: "ຊື່ຊັບສິນ" }, { name: "category", label: "ໝວດ", col: "col-span-1" }, { name: "cost", label: "ຕົ້ນທຶນ", type: "number", col: "col-span-1" }, { name: "life_months", label: "ອາຍຸໃຊ້ (ເດືອນ)", type: "number", col: "col-span-1" }, { name: "date", label: "ວັນທີໄດ້ມາ", type: "date", col: "col-span-1" }], { life_months: 60, date: UI.today() }, (d, close) => { Store.insert("assets", Object.assign({ method: "straight", acc_dep: 0, status: "active" }, d)); close(); assets(); UI.toast("ລົງທະບຽນແລ້ວ", "ok"); });
+    view().querySelector("#add").onclick = () => formModal("ລົງທະບຽນຊັບສິນ", [{ name: "name", label: "ຊື່ຊັບສິນ" }, { name: "category", label: "ໝວດ", col: "col-span-1" }, { name: "cost", label: "ຕົ້ນທຶນ", type: "number", col: "col-span-1" }, { name: "life_months", label: "ອາຍຸໃຊ້ (ເດືອນ)", type: "number", col: "col-span-1" }, { name: "date", label: "ວັນທີໄດ້ມາ", type: "date", col: "col-span-1" },
+      { name: "booking", label: "ການລົງບັນຊີ", type: "select", options: [{ value: "purchase", label: "ຊື້ໃໝ່ — Dr ຊັບສິນ · Cr ທະນາຄານ/ເງິນສົດ (ຍອດບໍ່ລວມ VAT)" }, { value: "opening", label: "ຊັບສິນເດີມ (ຍອດຍົກມາ) — Dr ຊັບສິນ · Cr Opening Balance Equity" }, { value: "none", label: "ລົງທະບຽນເທົ່ານັ້ນ (ບັນຊີລົງແລ້ວ ຫຼື ມາຈາກການຈັດຊື້)" }] },
+      { name: "bank_id", label: "ຈ່າຍຈາກບັນຊີ (ກໍລະນີຊື້ໃໝ່)", type: "select", options: Store.all("bank_accounts").map(b => ({ value: b.id, label: b.name })) }], { life_months: 60, date: UI.today(), booking: "purchase" }, (d, close) => {
+      if (!(Number(d.cost) > 0)) return UI.toast("ໃສ່ຕົ້ນທຶນ", "warn");
+      try {
+        if (d.booking === "purchase" || d.booking === "opening") {
+          const bank = Store.get("bank_accounts", d.bank_id), cr = d.booking === "purchase" ? (bank || {}).gl_account : "3900";
+          if (!cr) return UI.toast("ເລືອກບັນຊີທະນາຄານ", "warn");
+          Acc.postJournal({ date: d.date, source_type: "ASSET", source_id: "", memo: (d.booking === "purchase" ? "ຊື້ຊັບສິນ " : "ຊັບສິນຍົກມາ ") + d.name, lines: [{ account: "1700", debit: Number(d.cost), credit: 0, memo: d.name }, { account: cr, debit: 0, credit: Number(d.cost), memo: d.name }] });
+        }
+        const rest = Object.assign({}, d); delete rest.booking; delete rest.bank_id;
+        Store.insert("assets", Object.assign({ method: "straight", acc_dep: 0, status: "active" }, rest));
+        close(); assets(); UI.toast("ລົງທະບຽນແລ້ວ" + (d.booking === "none" ? " (ບໍ່ມີ Journal)" : " + ລົງບັນຊີ"), "ok");
+      } catch (e) { UI.toast(e.message, "err"); }
+    });
     view().querySelector("#run").onclick = () => {
       try { const r = Autopost.manual("DEPR", "", UI.today()); assets(); UI.toast("Run ຄ່າເສື່ອມ " + M(r.amount) + " ສຳເລັດ", "ok"); }
       catch (e) { UI.toast(e.message, "warn"); }
@@ -946,7 +960,7 @@
           <div class="text-sm mb-3">${Store.mode === "cloud" ? '<span class="badge green">☁ Cloud · Google Sheet</span>' : '<span class="badge amber">💾 Demo Mode · ເກັບໃນ browser</span>'}</div>
           <div class="flex flex-wrap gap-2 mb-2"><button class="btn btn-primary btn-sm" id="s-backup">⬇ ສຳຮອງຂໍ້ມູນ (Backup)</button><button class="btn btn-ghost btn-sm" id="s-restore">⬆ ກູ້ຄືນ (Restore)</button></div>
           <p class="hint mb-3" id="s-backup-hint">${fableLastBackupText()}</p>
-          ${Store.mode === "demo" ? '<p class="hint mb-3">ເປີດ config.js ໃສ່ URL Apps Script ເພື່ອເກັບໃນ Google Sheet (ເບິ່ງ README.md)</p><button class="btn btn-danger" id="s-reset">ລ້າງຂໍ້ມູນ Demo</button>' : ""}
+          ${Store.mode === "demo" ? '<p class="hint mb-3">ເປີດ config.js ໃສ່ URL Apps Script ເພື່ອເກັບໃນ Google Sheet (ເບິ່ງ README.md)</p><button class="btn btn-danger" id="s-reset">ລ້າງຂໍ້ມູນ Demo</button> <button class="btn btn-danger" id="s-wipe">ລ້າງທັງໝົດ — ເລີ່ມບໍລິສັດເປົ່າ</button>' : ""}
         </div>
       </div>`;
     bindMoneyInput(view().querySelector("#s-aplimit"));
@@ -975,6 +989,7 @@
     const spm = view().querySelector("#s-perms"); if (spm) spm.onclick = () => permissionsMatrixModal();
     const sbk = view().querySelector("#s-backup"); if (sbk) sbk.onclick = () => { fableBackup(); const h = view().querySelector("#s-backup-hint"); if (h) h.textContent = fableLastBackupText(); };
     const srt = view().querySelector("#s-restore"); if (srt) srt.onclick = () => fableRestore();
+    const wp = view().querySelector("#s-wipe"); if (wp) wp.onclick = () => UI.confirmDialog("ລ້າງຂໍ້ມູນທັງໝົດ ແລ້ວເລີ່ມບໍລິສັດເປົ່າ (ບໍ່ມີລູກຄ້າ/ສິນຄ້າຕົວຢ່າງ)? ແນະນຳໃຫ້ 'ສຳຮອງຂໍ້ມູນ' ກ່ອນ — ກູ້ຄືນບໍ່ໄດ້", () => { Store.resetDemo(true); location.reload(); });
     const rs = view().querySelector("#s-reset"); if (rs) rs.onclick = () => UI.confirmDialog("ລ້າງຂໍ້ມູນ Demo ທັງໝົດ? ແນະນຳໃຫ້ກົດ 'ສຳຮອງຂໍ້ມູນ' ກ່ອນ — ຂໍ້ມູນທີ່ລ້າງແລ້ວກູ້ຄືນບໍ່ໄດ້", () => { Store.resetDemo(); location.reload(); });
   }
 
@@ -1110,8 +1125,9 @@
     formModal("ປັບ Stock", [
       { name: "item_id", label: "ສິນຄ້າ", type: "select", options: items.map(i => ({ value: i.id, label: i.name + " (ຄົງ " + Acc.stockQty(i.id) + ")" })) },
       { name: "qtyDelta", label: "ປັບ (+ ເພີ່ມ / − ຫຼຸດ)", type: "number" },
+      { name: "kind", label: "ປະເພດການປັບ", type: "select", options: [{ value: "loss", label: "ເສຍຫາຍ / ຂາດສາງ / ຜົນນັບສາງ → ຄ່າໃຊ້ຈ່າຍທົ່ວໄປ" }, { value: "usage", label: "ໃຊ້ໃນການປຸງ/ຂາຍ (ວັດຖຸດິບທີ່ໃຊ້) → ຕົ້ນທຶນຂາຍ (COGS)" }] },
       { name: "reason", label: "ເຫດຜົນ" }
-    ], {}, (d, close) => { if (!d.qtyDelta) return UI.toast("ໃສ່ຈຳນວນ", "warn"); Acc.stockAdjust({ item_id: d.item_id, qtyDelta: d.qtyDelta, reason: d.reason, date: UI.today() }); close(); inventory(); UI.toast("ປັບ stock ສຳເລັດ", "ok"); });
+    ], {}, (d, close) => { if (!d.qtyDelta) return UI.toast("ໃສ່ຈຳນວນ", "warn"); Acc.stockAdjust({ item_id: d.item_id, qtyDelta: d.qtyDelta, reason: d.reason, kind: d.kind, date: UI.today() }); close(); inventory(); UI.toast("ປັບ stock ສຳເລັດ", "ok"); });
   }
 
   /* Asset dispose */
@@ -1225,7 +1241,15 @@
   }
 
   /* Reports extras */
-  function cashFlowModal() { const c = Acc.cashFlow(); UI.modal("ກະແສເງິນສົດ (ຈາກ Payment)", `<div class="space-y-2 text-sm">${plRow("ເງິນເຂົ້າ", c.inflow)}${plRow("ເງິນອອກ", -c.outflow)}${plRow("ສຸດທິ", c.net, true, c.net >= 0 ? "#15803d" : "#b91c1c")}</div>`); }
+  function cashFlowModal() {
+    const c = Acc.cashFlowGL(), cashNow = [...Acc.cashAccountCodes()].reduce((x, code) => x + Acc.accountBalance(code), 0);
+    const sec = ["ດຳເນີນງານ", "ລົງທຶນ (ຊັບສິນຖາວອນ)", "ການເງິນ (ທຶນ / ກູ້ຢືມ)"];
+    const body = sec.map(sc => { const rs = c.rows.filter(r => r.section === sc); if (!rs.length) return ""; const i = rs.reduce((x, r) => x + r.inflow, 0), o = rs.reduce((x, r) => x + r.outflow, 0);
+      return `<tr><td colspan="3" class="font-semibold bg-slate-50">${E(sc)}</td></tr>` + rs.map(r => `<tr><td>${E(r.label)}</td><td class="num">${r.inflow ? M(r.inflow) : ""}</td><td class="num">${r.outflow ? M(r.outflow) : ""}</td></tr>`).join("") + `<tr><td class="text-right text-slate-500">ສຸດທິ ${E(sc)}</td><td class="num" colspan="2"><b>${M(i - o)}</b></td></tr>`; }).join("");
+    UI.modal("ກະແສເງິນສົດ (ຈາກບັນຊີ — ທຸກ Journal ທີ່ແຕະເງິນສົດ/ທະນາຄານ)", `<table class="data"><thead><tr><th>ລາຍການ</th><th class="num">ເຂົ້າ</th><th class="num">ອອກ</th></tr></thead><tbody>${body || '<tr><td colspan=3 class="text-slate-400 py-4 text-center">ຍັງບໍ່ມີກະແສເງິນສົດ</td></tr>'}</tbody></table>
+      <div class="space-y-1 text-sm mt-3">${plRow("ເງິນຕົ້ນງວດ", c.opening)}${plRow("ເຂົ້າທັງໝົດ", c.inflow)}${plRow("ອອກທັງໝົດ", -c.outflow)}${plRow("ເງິນຄົງເຫຼືອ", c.closing, true)}</div>
+      <p class="hint mt-2">${Math.abs(c.closing - cashNow) < 1 ? "✓ ກົງກັບຍອດເງິນສົດ + ທະນາຄານໃນບັນຊີ " + M(cashNow) : "⚠ ບໍ່ກົງກັບຍອດໃນບັນຊີ " + M(cashNow)}</p>`, { wide: true });
+  }
   function stockValModal() { const items = Store.where("items", i => i.type === "stock"); const body = items.map(i => `<tr><td>${E(i.name)}</td><td class="num">${Acc.stockQty(i.id)}</td><td class="num">${M(i.avg_cost)}</td><td class="num">${M(Acc.stockValue(i.id))}</td></tr>`).join(""); const tot = items.reduce((s, i) => s + Acc.stockValue(i.id), 0); UI.modal("ມູນຄ່າສະຕັອກ", `<table class="data"><thead><tr><th>ສິນຄ້າ</th><th class="num">ຈຳນວນ</th><th class="num">ຕົ້ນທຶນ</th><th class="num">ມູນຄ່າ</th></tr></thead><tbody>${body}<tr class="font-bold bg-slate-50"><td colspan=3>ລວມ</td><td class="num">${M(tot)}</td></tr></tbody></table>`, { wide: true }); }
   function whtModal() { const w = Acc.accountBalance("2400"); UI.modal("WHT (ອາກອນຫັກທີ່ແຫຼ່ງ)", `<div class="space-y-2 text-sm">${plRow("WHT ຄ້າງຈ່າຍ (ຕ້ອງຍືນ)", w, true)}</div><p class="hint mt-2">ຍືນ DRD ພາຍໃນ 15 ວັນ</p>`); }
   function exportJournalCSV() { const jes = Store.all("journal_entries"); let csv = "Number,Date,Source,Account,Debit,Credit,Memo\n"; jes.forEach(j => { Store.where("journal_lines", l => l.je_id === j.id).forEach(l => { csv += `${j.number},${j.date},${j.source_type},"${(l.account_name || "").replace(/"/g, "")}",${l.debit},${l.credit},"${(l.memo || "").replace(/"/g, "")}"\n`; }); }); downloadCSV("journal.csv", csv); UI.toast("ດາວໂຫລດ journal.csv", "ok"); }
@@ -1754,7 +1778,11 @@
     const invs = Store.where("invoices", i => i.status !== "draft" && i.status !== "void"), bills = Store.where("bills", b => b.status !== "draft" && b.status !== "void");
     const irows = invs.map(i => `<tr><td>${E(i.number)}</td><td class="num">${M(i.vat || 0)}</td></tr>`).join(""), brows = bills.map(b => `<tr><td>${E(b.number)}</td><td class="num">${M(b.vat || 0)}</td></tr>`).join("");
     const out = invs.reduce((s, i) => s + Number(i.vat || 0), 0), inp = bills.reduce((s, b) => s + Number(b.vat || 0), 0);
-    UI.modal("VAT Return (ລະອຽດ)", `<div class="grid md:grid-cols-2 gap-4"><div><h4 class="font-semibold mb-1">Output VAT ${M(out)}</h4><table class="data"><thead><tr><th>Invoice</th><th class="num">VAT</th></tr></thead><tbody>${irows || '<tr><td colspan=2 class="text-slate-400 py-2">-</td></tr>'}</tbody></table></div><div><h4 class="font-semibold mb-1">Input VAT ${M(inp)}</h4><table class="data"><thead><tr><th>Bill</th><th class="num">VAT</th></tr></thead><tbody>${brows || '<tr><td colspan=2 class="text-slate-400 py-2">-</td></tr>'}</tbody></table></div></div><p class="text-right mt-3 font-semibold">VAT ຕ້ອງຍືນ: ${M(out - inp)}</p>`, { wide: true });
+    // what the LEDGER says (turnover on the VAT accounts, ignoring the month-end clearing entry): includes POS summaries and requests that have no Invoice/Bill
+    const turn = code => { let n = 0; Store.all("journal_entries").forEach(j => { if (j.status === "void" || j.source_type === "VAT_CLOSE") return; Store.where("journal_lines", l => l.je_id === j.id && String(l.account) === code).forEach(l => { n += (Number(l.credit) || 0) - (Number(l.debit) || 0); }); }); return Acc.round(n); };
+    const outGL = turn(Acc.PA("VAT_OUT")), inGL = -turn(Acc.PA("VAT_IN")), dOut = Acc.round(outGL - out), dIn = Acc.round(inGL - inp);
+    const recon = `<div class="booking mb-3" style="${dOut || dIn ? "background:#fffbeb;border-color:#fcd34d" : ""}">ຕາມບັນຊີ (GL): Output <b>${M(outGL)}</b> · Input <b>${M(inGL)}</b> · ຕ້ອງຍື່ນ <b>${M(outGL - inGL)}</b>${dOut || dIn ? `<br>⚠ ຕ່າງຈາກເອກະສານ: Output ${M(dOut)} · Input ${M(dIn)} — ແມ່ນ VAT ທີ່ລົງດ້ວຍ Journal (ສະຫຼຸບ POS, ຄຳຂໍເບີກ) ທີ່ບໍ່ມີ Invoice/Bill. ໃຊ້ຕົວເລກ GL ໃນການຍື່ນ.` : " · ກົງກັບເອກະສານ"}</div>`;
+    UI.modal("VAT Return (ລະອຽດ)", recon + `<div class="grid md:grid-cols-2 gap-4"><div><h4 class="font-semibold mb-1">Output VAT ${M(out)}</h4><table class="data"><thead><tr><th>Invoice</th><th class="num">VAT</th></tr></thead><tbody>${irows || '<tr><td colspan=2 class="text-slate-400 py-2">-</td></tr>'}</tbody></table></div><div><h4 class="font-semibold mb-1">Input VAT ${M(inp)}</h4><table class="data"><thead><tr><th>Bill</th><th class="num">VAT</th></tr></thead><tbody>${brows || '<tr><td colspan=2 class="text-slate-400 py-2">-</td></tr>'}</tbody></table></div></div><p class="text-right mt-3 font-semibold">VAT ຕ້ອງຍືນ: ${M(out - inp)}</p>`, { wide: true });
   }
 
   function exportTrialBalanceCSV() { let csv = "code,name,type,balance\n"; Store.where("accounts", a => !a.is_header).forEach(a => { const b = Acc.accountBalance(a.code); if (Math.abs(b) > 0.5) csv += `${a.code},"${(a.name || "").replace(/"/g, "")}",${a.type},${b}\n`; }); downloadCSV("trial_balance.csv", csv); UI.toast("ດາວໂຫລດ trial_balance.csv", "ok"); }
