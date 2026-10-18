@@ -10,7 +10,8 @@
     { group: "ພາບລວມ", items: [
       ["dashboard", "", "🏠 ໜ້າຫຼັກ"],
       ["requests", "", "✍️ ຄຳຂໍ & ອະນຸມັດ"],
-      ["mytasks", "", "✅ ວຽກຂອງຂ້ອຍ"] ] },
+      ["mytasks", "", "✅ ວຽກຂອງຂ້ອຍ"],
+      ["disburse", "", "📤 ຂໍເບີກ"] ] },
     { group: "ຂາຍ", items: [
       ["pos", "", "🛒 ຂາຍໜ້າຮ້ານ (POS)"],
       ["invoices", "", "🧾 Invoice & CN"],
@@ -38,7 +39,7 @@
       ["workflows", "", "🔁 ຂະບວນການເອກະສານ"],
       ["doctemplates", "", "📄 ແມ່ແບບເອກະສານ"] ] }
   ];
-  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","mytasks","requests","procure","invoices","bills","banking","gl","assets","budget","reports","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","mytasks","requests","procure","pos","customers","invoices","reports","docs","announce","tags","workflows","doctemplates"], Purchasing: ["dashboard","mytasks","requests","procure","vendors","bills","inventory","reports","docs","announce","tags","workflows","doctemplates"], Warehouse: ["dashboard","mytasks","requests","procure","inventory","reports","docs","announce","tags","workflows","doctemplates"], HR: ["dashboard","mytasks","requests","procure","payroll","reports","docs","announce","tags","workflows","doctemplates"], Cashier: ["dashboard","mytasks","requests","procure","pos","banking","reports","docs","announce","tags","workflows","doctemplates"], Manager: null, Auditor: ["dashboard","mytasks","requests","procure","gl","reports","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","mytasks","requests","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
+  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","mytasks","disburse","requests","procure","invoices","bills","banking","gl","assets","budget","reports","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","mytasks","disburse","requests","procure","pos","customers","invoices","reports","docs","announce","tags","workflows","doctemplates"], Purchasing: ["dashboard","mytasks","disburse","requests","procure","vendors","bills","inventory","reports","docs","announce","tags","workflows","doctemplates"], Warehouse: ["dashboard","mytasks","disburse","requests","procure","inventory","reports","docs","announce","tags","workflows","doctemplates"], HR: ["dashboard","mytasks","disburse","requests","procure","payroll","reports","docs","announce","tags","workflows","doctemplates"], Cashier: ["dashboard","mytasks","disburse","requests","procure","pos","banking","reports","docs","announce","tags","workflows","doctemplates"], Manager: null, Auditor: ["dashboard","mytasks","requests","procure","gl","reports","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","mytasks","requests","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
   // "Advanced mode" (Settings): shows the DMS menu and the niche accounting buttons (see css/styles.css .adv rules)
   function advancedOn() { const c = Store.get("settings", "company") || {}; return !!c.show_advanced; }
   function applyAdvanced() { document.body.classList.toggle("adv-on", advancedOn()); }
@@ -3533,6 +3534,39 @@
   }
 
   /* ================= ✅ ວຽກຂອງຂ້ອຍ (My Tasks) ================= */
+  /* ================= ຂໍເບີກ: one entry point for money requests ================= */
+  // Pick what you need → fill the form → approvers sign → it posts itself. Engine and approval chain live in Flows.
+  function disburse() {
+    const role = currentRole(), KINDS = ["EXP", "PRJ", "ADV", "CLR"], canNew = canDo("create", "disburse");
+    const all = Store.all("requests").filter(r => KINDS.indexOf(r.type) !== -1).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    const waiting = Flows.queue(role).filter(r => KINDS.indexOf(r.type) !== -1);
+    const openOf = t => all.filter(r => t.indexOf(r.type) !== -1 && !Flows.ENDED[r.stage]).length;
+    const openAdv = Flows.openAdvances().length;
+    const tile = (type, ic, title, desc, n, extra) => `<div class="dz-tile"><button class="dz-main" data-dz="${type}" ${canNew ? "" : "disabled"}>
+        <span class="dz-ic">${Icons.svg(ic, 26)}</span><span class="dz-tx"><b>${E(title)}</b><span class="hint">${E(desc)}</span></span>${n ? `<span class="count">${n}</span>` : ""}</button>${extra || ""}</div>`;
+    view().innerHTML = UI.pageHead("ຂໍເບີກ", "ເລືອກປະເພດ → ກອກຟອມ → ອະນຸມັດ → ລົງບັນຊີອັດຕະໂນມັດ", "") +
+      (canNew ? "" : `<div class="booking mb-4">ບົດບາດ ${E(role)} ບໍ່ມີສິດສ້າງຄຳຂໍ ແຕ່ເບິ່ງສະຖານະໄດ້</div>`) +
+      `<div class="dz-grid mb-6">
+        ${tile("EXP", "banknote", "ຄ່າໃຊ້ຈ່າຍ", "ຈ່າຍຄ່າໃຊ້ຈ່າຍ ຫຼາຍໝວດໃນໃບດຽວ ຈາກທະນາຄານ/ເງິນສົດ", openOf(["EXP"]),
+          `<button class="dz-sub" data-dz="PRJ" ${canNew ? "" : "disabled"}>ຕົ້ນທຶນໂຄງການ (CIP) →</button>`)}
+        ${tile("ADV", "wallet", "ເງິນແຮ", "ເບີກເງິນແຮໃຫ້ຜູ້ຮັບ ແລ້ວເຄລຍດ້ວຍໃບບິນພາຍຫຼັງ", openOf(["ADV", "CLR"]),
+          `<button class="dz-sub" data-dz="CLR" ${canNew && openAdv ? "" : "disabled"}>ເຄລຍເງິນແຮ${openAdv ? " (" + openAdv + " ຄ້າງ)" : ""} →</button>`)}
+      </div>` +
+      `<div class="section-title">ລໍທ່ານ <span class="count ${waiting.length ? "" : "zero"}">${waiting.length}</span></div>` +
+      (waiting.length ? `<div class="ac-list cols mb-6">${waiting.slice(0, 6).map(x => `<div class="ac-card warn"><div class="ac-ic">${Icons.svg("clipboard", 20)}</div><div class="ac-body"><div class="ac-title">${E(x.number)} · ${E(x.purpose)}</div><div class="ac-meta">${E(x.payee || "")} · ${M(Flows.amountOf(x))}</div></div><button class="btn btn-primary btn-sm" data-dzo="${x.id}">ເປີດ</button></div>`).join("")}</div>` : `<div class="ac-empty mb-6">ບໍ່ມີຄຳຂໍລໍທ່ານ</div>`) +
+      `<div class="section-title">ຄຳຂໍລ່າສຸດ</div>` +
+      UI.table([
+        { h: "ເລກທີ", render: x => `<b>${E(x.number)}</b><div class="hint">${E(Flows.TYPES[x.type].label)}</div>` },
+        { h: "ລາຍລະອຽດ", render: x => `${E(x.purpose)}<div class="hint">${E(x.payee || "")}</div>` },
+        { h: "ຍອດ", cls: "num", render: x => M(Flows.amountOf(x)) },
+        { h: "ສະຖານະ", render: x => `<span class="chip ${x.stage === "closed" ? "s-done" : Flows.ENDED[x.stage] ? "s-bad" : x.stage === "draft" ? "s-draft" : "s-wait"}">${E(Flows.STAGE_LABEL[x.stage] || x.stage)}</span>` },
+        { h: "", render: x => `<button class="btn btn-ghost btn-sm" data-dzo="${x.id}">ເປີດ</button>` }
+      ], all.slice(0, 15));
+    const v = view();
+    v.querySelectorAll("[data-dz]").forEach(b => b.onclick = () => FlowsUI.newRequest(b.dataset.dz));
+    v.querySelectorAll("[data-dzo]").forEach(b => b.onclick = () => { location.hash = "#/requests?id=" + b.dataset.dzo; });
+  }
+
   function mytasks() {
     const role = currentRole();
     const groups = [];
@@ -3664,7 +3698,7 @@
     try { setTimeout(() => fableTour(), 800); } catch (e) {}
   }
 
-  const ROUTES = { procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };
+  const ROUTES = { disburse, procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };
   function router() {
     const route = (location.hash.replace("#/", "") || "dashboard").split("?")[0];
     setActive(route);

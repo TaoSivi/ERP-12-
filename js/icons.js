@@ -53,6 +53,7 @@
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>',
     cart: '<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2 3h3l2.7 12.4a1 1 0 0 0 1 .8h8.8a1 1 0 0 0 1-.8L20 7H6"/>',
+    send: '<path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/>',
     arrowright: '<path d="M5 12h14M13 6l6 6-6 6"/>'
   };
 
@@ -68,7 +69,7 @@
     "💸": "banknote", "💰": "banknote", "💵": "banknote", "🗑": "trash", "📎": "paperclip", "🖼": "image",
     "💾": "database", "💽": "database", "🔔": "bell", "🖨": "printer", "🔎": "search", "🔍": "search",
     "🛡": "shield", "🔗": "link", "⚡": "zap", "▶": "play", "👁": "eye", "🔧": "wrench",
-    "☁": "cloud", "☰": "menu", "➜": "arrowright"
+    "📤": "send", "☁": "cloud", "☰": "menu", "➜": "arrowright"
   };
   const DOTS = { "🔴": "#ef4444", "🟠": "#f97316", "🟡": "#eab308", "🟦": "#0abab5", "🟧": "#f97316" };
 
