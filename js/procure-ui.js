@@ -123,7 +123,7 @@
             <td>${lines.length > 1 ? `<button class="text-red-500" data-del="${i}">✕</button>` : ""}</td></tr>`).join("");
           const tot = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.price) || 0), 0);
           q("#nc-total").textContent = M(tot);
-          q("#nc-chain").innerHTML = "✍️ <span>ຕ້ອງຜ່ານ: <b>" + Approval.chainFor("PURCHASE", tot).map(E).join(" → ") + "</b> ແລ້ວຈຶ່ງໄປຝ່າຍຈັດຊື້</span>";
+          q("#nc-chain").innerHTML = "✍️ <span>ຕ້ອງຜ່ານ: <b>" + Approval.chainLabels(Approval.chainFor("PURCHASE", tot)).map(E).join(" → ") + "</b> ແລ້ວຈຶ່ງໄປຝ່າຍຈັດຊື້</span>";
           bd.querySelectorAll("[data-k]").forEach(el => el.onchange = () => {
             const l = lines[+el.dataset.i], k = el.dataset.k;
             l[k] = (k === "qty" || k === "price") ? Number(el.value) || 0 : el.value;
@@ -170,7 +170,7 @@
 
   function chainHtml(c, s) {
     const cs = Approval.chainState(c, "PURCHASE", s.est);
-    return `<div class="flex flex-wrap gap-2 mt-2">${cs.chain.map((r, i) => { const d = cs.done[i]; return `<span class="chip ${d ? "s-done" : i === cs.step ? "s-wait" : "s-draft"}">${i + 1}. ${E(r)}${d ? " ✓" : ""}</span>`; }).join('<span class="hint">→</span>')}</div>`;
+    return `<div class="flex flex-wrap gap-2 mt-2">${cs.steps.map((s, i) => { const sig = cs.done.filter(d => d.step === i), ok = sig.length >= s.need; return `<span class="chip ${ok ? "s-done" : i === cs.step ? "s-wait" : "s-draft"}">${i + 1}. ${E(Approval.stepLabel(cs.chain[i]))}${sig.length ? " ✓ " + sig.map(d => E(d.name || d.role)).join(", ") : ""}${s.need > 1 && !ok ? " (" + sig.length + "/" + s.need + ")" : ""}</span>`; }).join('<span class="hint">→</span>')}</div>`;
   }
   function budgetHtml(c) {
     const b = Procure.budgetCheck(c.id);

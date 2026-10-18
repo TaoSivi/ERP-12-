@@ -37,7 +37,7 @@
   }
   function infoGrid(r) {
     const adv = r.advance_id ? Store.get("requests", r.advance_id) : null, proj = r.project_id ? Store.get("projects", r.project_id) : null;
-    const rows = [["ເລກທີ", r.number], ["ວັນທີ", UI.fmtDate(r.date)], ["ຜູ້ຂໍ (ບົດບາດ)", r.requester_role], ["ພະແນກ", r.dept],
+    const rows = [["ເລກທີ", r.number], ["ວັນທີ", UI.fmtDate(r.date)], ["ຜູ້ຂໍ", r.requester_name ? r.requester_name + " (" + r.requester_role + ")" : r.requester_role], ["ພະແນກ", r.dept],
       ["ຈ່າຍໃຫ້ / ຜູ້ຮັບ", r.payee], ["ສະຖານະ", Flows.STAGE_LABEL[r.stage] || r.stage]];
     if (r.ccy && r.ccy !== "LAK") rows.push(["ສະກຸນ / ອັດຕາ", r.ccy + " @ " + Number(r.rate).toLocaleString("en-US")]);
     if (proj) rows.push(["ໂຄງການ", proj.name]);
@@ -81,13 +81,14 @@
   function stamps(r) {
     const h = Flows.history(r.id), first = a => h.find(x => x.action === a), blocks = [];
     const sub = first("submit");
-    blocks.push(stamp("ສົ່ງຂໍ", r.requester_role, sub ? day(sub.ts) : "", sub ? "done" : "cur"));
+    blocks.push(stamp("ສົ່ງຂໍ", r.requester_name ? r.requester_name + " (" + r.requester_role + ")" : r.requester_role, sub ? day(sub.ts) : "", sub ? "done" : "cur"));
     const st = r.chain && r.chain.length ? Approval.chainState(r, r.type, Flows.amountOf(r)) : null;
     if (st) {
-      const ap = h.filter(x => x.action === "approve");
-      st.chain.forEach((role, i) => {
-        const d = st.done[i], hist = ap[i];
-        blocks.push(stamp("ອະນຸມັດ ຂັ້ນ " + (i + 1), d ? d.role : role, d ? day((hist && hist.ts) || d.at) : "", d ? "done" : (r.stage === "approval" && i === st.step ? "cur" : "wait")));
+      st.steps.forEach((s, i) => {
+        const sig = st.done.filter(d => d.step === i);
+        sig.forEach(d => blocks.push(stamp("ອະນຸມັດ ຂັ້ນ " + (i + 1), d.name ? d.name + " (" + d.role + ")" : d.role, day(d.at), "done")));
+        const left = s.need - sig.length;
+        if (left > 0) blocks.push(stamp("ອະນຸມັດ ຂັ້ນ " + (i + 1), Approval.stepLabel(st.chain[i]) + (left > 1 || sig.length ? " (ອີກ " + left + " ຄົນ)" : ""), "", r.stage === "approval" && i === st.step ? "cur" : "wait"));
       });
     }
     const pay = first("pay") || h.find(x => x.action === "post");
@@ -99,7 +100,7 @@
     if (!h.length) return "";
     return `<div style="margin-top:20px"><div style="font-weight:700;font-size:13px;margin-bottom:4px">ລຳດັບຂັ້ນຕອນ</div>
       <table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>${th("#")}${th("ຜູ້ດຳເນີນການ (ບົດບາດ)")}${th("ການກະທຳ")}${th("ວັນທີ / ເວລາ")}${th("ໝາຍເຫດ")}</tr></thead>
-      <tbody>${h.map((x, i) => `<tr>${td(i + 1)}${td(E(x.role))}${td(E(ACT[x.action] || x.action))}${td(fmt(x.ts))}${td(E(x.note || ""))}</tr>`).join("")}</tbody></table></div>`;
+      <tbody>${h.map((x, i) => `<tr>${td(i + 1)}${td(E(x.name ? x.name + " (" + x.role + ")" : x.role))}${td(E(ACT[x.action] || x.action))}${td(fmt(x.ts))}${td(E(x.note || ""))}</tr>`).join("")}</tbody></table></div>`;
   }
   function entry(r) {
     const jes = Store.where("journal_entries", j => j.source_id === r.id && j.status !== "void");

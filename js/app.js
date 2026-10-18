@@ -44,7 +44,28 @@
   // "Advanced mode" (Settings): shows the DMS menu and the niche accounting buttons (see css/styles.css .adv rules)
   function advancedOn() { const c = Store.get("settings", "company") || {}; return !!c.show_advanced; }
   function applyAdvanced() { document.body.classList.toggle("adv-on", advancedOn()); }
-  function currentRole() { try { return localStorage.getItem("laobooks_role") || "Admin"; } catch (e) { return "Admin"; } }
+  // A signed-in USER (picked with the name button, top right) overrides the plain role. Browser-side only, like the role itself.
+  function currentUser() { try { const id = localStorage.getItem("laobooks_user"); return id ? (Store.get("users", id) || null) : null; } catch (e) { return null; } }
+  function currentRole() { const u = currentUser(); if (u && u.role) return u.role; try { return localStorage.getItem("laobooks_role") || "Admin"; } catch (e) { return "Admin"; } }
+  function renderUserChip() {
+    const b = document.getElementById("userBtn"); if (!b) return;
+    const u = currentUser(); b.textContent = (u ? u.name : currentRole()).trim().slice(0, 1).toUpperCase();
+    b.title = u ? u.name + " · " + u.role : "ບົດບາດ " + currentRole() + " (ບໍ່ລະບຸຊື່)";
+  }
+  function userSwitchModal() {
+    const users = Store.where("users", u => (u.status || "active") === "active"), me = currentUser();
+    UI.modal("ເຂົ້າໃຊ້ເປັນ", `<p class="hint mb-3">ເລືອກຊື່ເພື່ອໃຫ້ລະບົບຮູ້ວ່າໃຜເປັນຜູ້ຂໍ / ຜູ້ອະນຸມັດ (ສິດຕາມບົດບາດຂອງຜູ້ໃຊ້ນັ້ນ). ເກັບໃນ browser ນີ້ ບໍ່ແມ່ນການ login ຈິງ.</p>
+      <div class="space-y-1">${users.map(u => `<label class="flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer"><input type="radio" name="su" value="${E(u.id)}" ${me && me.id === u.id ? "checked" : ""}><b>${E(u.name)}</b><span class="hint">${E(u.role)}</span></label>`).join("") || '<div class="hint">ຍັງບໍ່ມີຜູ້ໃຊ້ — ເພີ່ມທີ່ ຜູ້ໃຊ້ & ສິດ</div>'}
+        <label class="flex items-center gap-3 p-2 rounded hover:bg-slate-50 cursor-pointer"><input type="radio" name="su" value="" ${me ? "" : "checked"}><b>ບໍ່ລະບຸຊື່</b><span class="hint">ໃຊ້ແຕ່ບົດບາດ (${E(currentRole())}) — ປ່ຽນໄດ້ທີ່ ຕັ້ງຄ່າ</span></label></div>
+      <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" data-cancel>ປິດ</button><button class="btn btn-primary" id="su-ok">ຢືນຢັນ</button></div>`, { onMount: (bd, close) => {
+        bd.querySelector("[data-cancel]").onclick = close;
+        bd.querySelector("#su-ok").onclick = () => {
+          const v = (bd.querySelector('input[name="su"]:checked') || {}).value || "";
+          try { if (v) localStorage.setItem("laobooks_user", v); else localStorage.removeItem("laobooks_user"); } catch (e) {}
+          close(); renderUserChip(); buildNav(); router(); UI.toast(v ? "ເຂົ້າໃຊ້ເປັນ " + (Store.get("users", v) || {}).name : "ໃຊ້ບົດບາດ " + currentRole(), "ok");
+        };
+      } });
+  }
   Perms.configure({ base: ROLE_PERMS, modules: NAV.reduce((a, g) => a.concat(g.items.map(([route, , label]) => [route, label])), []) });
   function allowed(route) { return Perms.can(currentRole(), route, "view"); }
   function modOf() { return (location.hash.replace("#/", "") || "dashboard").split("?")[0]; }
@@ -948,7 +969,7 @@
     };
     const stx = view().querySelector("#s-tax"); if (stx) stx.onclick = () => taxCodeModal(); const sfx = view().querySelector("#s-fx"); if (sfx) sfx.onclick = () => fxRateModal();
     const spo = view().querySelector("#s-posting"); if (spo) spo.onclick = () => postingRulesModal();
-    const rsel = view().querySelector("#s-role"); if (rsel) { rsel.innerHTML = Object.keys(ROLE_PERMS).map(r => `<option value="${r}" ${r === currentRole() ? "selected" : ""}>${r}</option>`).join(""); rsel.onchange = () => { try { localStorage.setItem("laobooks_role", rsel.value); } catch (e) {} buildNav(); UI.toast("ບົດບາດ: " + rsel.value, "ok"); location.hash = "#/dashboard"; }; }
+    const rsel = view().querySelector("#s-role"); if (rsel) { rsel.innerHTML = Object.keys(ROLE_PERMS).map(r => `<option value="${r}" ${r === currentRole() ? "selected" : ""}>${r}</option>`).join(""); rsel.onchange = () => { try { localStorage.setItem("laobooks_role", rsel.value); localStorage.removeItem("laobooks_user"); } catch (e) {} renderUserChip(); buildNav(); UI.toast("ບົດບາດ: " + rsel.value, "ok"); location.hash = "#/dashboard"; }; }
     const scmp = view().querySelector("#s-company"); if (scmp) scmp.onclick = () => companySwitchModal();
     const sus = view().querySelector("#s-users"); if (sus) sus.onclick = () => { location.hash = "#/usersadmin"; };
     const spm = view().querySelector("#s-perms"); if (spm) spm.onclick = () => permissionsMatrixModal();
@@ -3784,8 +3805,9 @@
 
   async function init() {
     document.addEventListener("click", e => document.querySelectorAll("details.more-menu[open]").forEach(d => { if (!d.contains(e.target) || e.target.closest(".more-pop .btn")) d.removeAttribute("open"); }));
-    window.AppCtx = { currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
-    installGates(); buildNav(); setupSearch();
+    window.AppCtx = { currentUserId: () => (currentUser() || {}).id || "", currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
+    installGates(); buildNav(); setupSearch(); renderUserChip();
+    const ub = document.getElementById("userBtn"); if (ub) ub.onclick = userSwitchModal;
     document.getElementById("menuBtn").onclick = () => document.getElementById("sidebar").classList.toggle("-translate-x-full");
     document.getElementById("view").addEventListener("click", e => { const b = e.target.closest("[data-tool]"); if (b && TOOLS[b.dataset.tool]) TOOLS[b.dataset.tool](); });
     document.getElementById("nav").addEventListener("click", e => { const b = e.target.closest("[data-tool]"); if (b && TOOLS[b.dataset.tool]) TOOLS[b.dataset.tool](); });

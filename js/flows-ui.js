@@ -46,9 +46,9 @@
   }
   function chainView(r) {
     const st = Approval.chainState(r, r.type, Flows.amountOf(r));
-    return `<div class="flex flex-wrap gap-2 mt-2">${st.chain.map((c, i) => {
-      const d = st.done[i];
-      return `<span class="chip ${d ? "s-done" : i === st.step ? "s-wait" : "s-draft"}">${i + 1}. ${E(c)}${d ? " ✓" + (d.role !== c ? " (" + E(d.role) + ")" : "") : ""}</span>`;
+    return `<div class="flex flex-wrap gap-2 mt-2">${st.steps.map((s, i) => {
+      const sig = st.done.filter(d => d.step === i), ok = sig.length >= s.need;
+      return `<span class="chip ${ok ? "s-done" : i === st.step ? "s-wait" : "s-draft"}">${i + 1}. ${E(Approval.stepLabel(st.chain[i]))}${sig.length ? " ✓ " + sig.map(d => E(d.name || d.role)).join(", ") : ""}${s.need > 1 && !ok ? " (" + sig.length + "/" + s.need + ")" : ""}</span>`;
     }).join('<span class="hint">→</span>')}</div>`;
   }
 
@@ -120,7 +120,7 @@
             const adv = Store.get("requests", q("#rq-adv").value), d = Acc.round(Number(adv.amount) - t);
             extra = " · ເງິນສຳຮອງ " + M(adv.amount) + (d > 0 ? " → ພະນັກງານຕ້ອງຄືນ <b>" + M(d) + "</b>" : d < 0 ? " → ບໍລິສັດຈ່າຍເພີ່ມ <b>" + M(-d) + "</b>" : " → ພໍດີ");
           }
-          q("#rq-chain").innerHTML = "✍️ <span>ຕ້ອງຜ່ານ: <b>" + Approval.chainFor(type, t).map(E).join(" → ") + "</b>" + extra + "</span>";
+          q("#rq-chain").innerHTML = "✍️ <span>ຕ້ອງຜ່ານ: <b>" + Approval.chainLabels(Approval.chainFor(type, t)).map(E).join(" → ") + "</b>" + extra + "</span>";
         }
         function draw() {
           bd.querySelectorAll("#rq-types [data-t]").forEach(b => b.classList.toggle("on", b.dataset.t === type));
@@ -267,7 +267,7 @@
     const bankSel = `<div class="grid sm:grid-cols-2 gap-2 mt-3"><div><label class="field">ບັນຊີເງິນ</label><select class="input" id="nx-bank">${banks().map(b => `<option value="${b.id}">${E(b.name)}</option>`).join("")}</select></div><div><label class="field">ວັນທີ</label><input class="input" type="date" id="nx-date" value="${UI.today()}"></div></div>`;
     if (r.stage === "draft") return `<div class="next-box">${head("ສົ່ງຂໍອະນຸມັດ")}<div class="flex gap-2 mt-3"><button class="btn btn-primary btn-lg" id="nx-go">ສົ່ງຂໍອະນຸມັດ →</button><button class="btn btn-ghost" id="nx-cancel">ຍົກເລີກ</button></div></div>`;
     if (r.stage === "approval") {
-      const st = Approval.chainState(r, r.type, Flows.amountOf(r)), last = st.step === st.chain.length - 1;
+      const st = Approval.chainState(r, r.type, Flows.amountOf(r)), last = st.step === st.chain.length - 1 && st.count[st.step] + 1 >= st.need;
       return `<div class="next-box">${head("ອະນຸມັດ " + Flows.TYPES[r.type].label + "?", "<b>" + M(Flows.amountOf(r)) + "</b> · " + E(r.payee || "") + " · ຂັ້ນ " + (st.step + 1) + "/" + st.chain.length)}
         ${chainView(r)}${warn}
         <textarea class="input mt-3" id="nx-note" rows="2" placeholder="ໝາຍເຫດ (ຈຳເປັນ ຖ້າປະຕິເສດ)"></textarea>
@@ -299,36 +299,72 @@
   }
 
   /* =================== Approval matrix editor (Settings) =================== */
-  function matrixModal() {
+  // Per request type: amount tiers → ordered steps. Each step = a role and/or named people + how many must sign.
+  function matrixModal(scope) {
+    scope = scope || "*";
     const m = Approval.matrix(), can = window.AppCtx.currentRole() === "Admin";
-    let tiers = m.tiers.map(t => ({ max: t.max, chain: t.chain.slice() }));
+    const own = scope !== "*" && !!m.by_type[scope];                       // does this type have its own chain?
+    let inherit = scope !== "*" && !own;
+    let tiers = JSON.parse(JSON.stringify((scope === "*" ? m.tiers : (m.by_type[scope] || m.tiers))));
+    const users = Store.where("users", u => (u.status || "active") === "active");
+    const scopes = [["*", "ທຸກປະເພດ (ຄ່າເລີ່ມຕົ້ນ)"]].concat(Object.keys(Flows.TYPES).map(k => [k, Flows.TYPES[k].label])).concat([["PURCHASE", "ຂໍຊື້ (PR)"]]);
     const fs = Flows.settings();
-    UI.modal("✍️ ຂັ້ນອະນຸມັດຕາມວົງເງິນ", `<p class="hint mb-3">ໃຊ້ກັບ ຂໍຊື້, ເບີກເງິນສຳຮອງ, ເຄລຍ, ຂໍເບີກຈ່າຍ. ຜູ້ຂໍອະນຸມັດເອງບໍ່ໄດ້ ແລະ ແຕ່ລະບົດບາດອະນຸມັດໄດ້ຂັ້ນດຽວ.</p>
+    const stepOf = e => Approval.normStep(e);
+    UI.modal("✍️ ຂັ້ນອະນຸມັດ", `<p class="hint mb-3">ແຕ່ລະຂັ້ນ: ເລືອກບົດບາດ ແລະ/ຫຼື ຜູ້ໃຊ້ທີ່ລະບຸຊື່ (ຄົນໃດຄົນໜຶ່ງໃນລາຍຊື່ເຊັນໄດ້) ແລະ ກຳນົດວ່າຕ້ອງເຊັນກີ່ຄົນ. ຜູ້ຂໍເຊັນເອງບໍ່ໄດ້ ແລະ ຄົນດຽວເຊັນສອງຂັ້ນບໍ່ໄດ້. ການລະບຸຊື່ຄົນໃຊ້ໄດ້ເມື່ອຜູ້ໃຊ້ເຂົ້າລະບົບເປັນຜູ້ໃຊ້ (ປຸ່ມຊື່ມຸມຂວາເທິງ).</p>
+      <div class="flex flex-wrap items-center gap-2 mb-3"><label class="field" style="margin:0">ປະເພດຄຳຂໍ</label>
+        <select class="input" id="mx-scope" style="width:auto">${scopes.map(([k, l]) => `<option value="${k}" ${k === scope ? "selected" : ""}>${E(l)}${k !== "*" && m.by_type[k] ? " *" : ""}</option>`).join("")}</select>
+        ${scope !== "*" ? `<label class="flex items-center gap-2 text-sm"><input type="checkbox" id="mx-inherit" ${inherit ? "checked" : ""} ${can ? "" : "disabled"}> ໃຊ້ຂັ້ນຄ່າເລີ່ມຕົ້ນ</label>` : ""}<span class="hint">* = ມີຂັ້ນຂອງຕົນເອງ</span></div>
       <div id="mx-rows"></div>
       ${can ? `<button class="btn btn-ghost btn-sm mt-2" id="mx-add">＋ ເພີ່ມຂັ້ນວົງເງິນ</button>` : ""}
-      <label class="flex items-center gap-2 text-sm mt-4"><input type="checkbox" id="mx-docs" ${fs.require_docs ? "checked" : ""} ${can ? "" : "disabled"}> ບັງຄັບເອກະສານແນບກ່ອນສົ່ງ (ເງິນສຳຮອງ / ເຄລຍ / ຂໍເບີກຈ່າຍ) — ປະເພດໃໝ່ (ໂອນເງິນ, ຄ່າທຳນຽມ) ບັງຄັບສະເໝີ</label>
-      <div class="grid sm:grid-cols-2 gap-3 mt-4"><div><label class="field">ເງິນສຳຮອງຕ້ອງເຄລຍພາຍໃນ (ວັນ)</label><input class="input num" type="number" id="mx-clear" value="${fs.clear_days}" ${can ? "" : "disabled"}></div></div>
+      ${scope === "*" ? `<label class="flex items-center gap-2 text-sm mt-4"><input type="checkbox" id="mx-docs" ${fs.require_docs ? "checked" : ""} ${can ? "" : "disabled"}> ບັງຄັບເອກະສານແນບກ່ອນສົ່ງ (ເງິນສຳຮອງ / ເຄລຍ / ຂໍເບີກຈ່າຍ) — ປະເພດໃໝ່ ບັງຄັບສະເໝີ</label>
+      <div class="grid sm:grid-cols-2 gap-3 mt-4"><div><label class="field">ເງິນສຳຮອງຕ້ອງເຄລຍພາຍໃນ (ວັນ)</label><input class="input num" type="number" id="mx-clear" value="${fs.clear_days}" ${can ? "" : "disabled"}></div></div>` : ""}
       <div class="flex justify-end gap-2 mt-4">${can ? `<button class="btn btn-primary" id="mx-save">ບັນທຶກ</button>` : '<span class="hint">ສະເພາະ Admin ແກ້ໄຂໄດ້</span>'}</div>`, { wide: true, onMount: (bd, close) => {
         const q = s => bd.querySelector(s);
+        q("#mx-scope").onchange = e => matrixModal(e.target.value);
+        const dis = can ? "" : "disabled";
+        function stepHtml(t, i, j) {
+          const s = stepOf(t.chain[j] === undefined ? { roles: [], users: [], need: 1 } : t.chain[j]);
+          return `<div class="card p-2"><div class="field">ຂັ້ນ ${j + 1}</div>
+            <select class="input mb-1" data-role="${i}.${j}" ${dis}><option value="">— ບົດບາດ —</option>${ROLES.map(rl => `<option ${s.roles[0] === rl ? "selected" : ""}>${rl}</option>`).join("")}</select>
+            <details><summary class="hint cursor-pointer">ຜູ້ໃຊ້ທີ່ລະບຸຊື່ (${s.users.length})</summary>
+              <div style="max-height:130px;overflow:auto" class="mt-1">${users.length ? users.map(u => `<label class="flex items-center gap-2 text-sm"><input type="checkbox" data-user="${i}.${j}" value="${E(u.id)}" ${s.users.indexOf(u.id) !== -1 ? "checked" : ""} ${dis}> ${E(u.name)} <span class="hint">${E(u.role)}</span></label>`).join("") : '<span class="hint">ຍັງບໍ່ມີຜູ້ໃຊ້ — ເພີ່ມທີ່ ຜູ້ໃຊ້ & ສິດ</span>'}</div></details>
+            <label class="field mt-1">ຕ້ອງເຊັນ (ຄົນ)</label><input class="input num" type="number" min="1" data-need="${i}.${j}" value="${s.need}" ${dis}></div>`;
+        }
+        function read() {      // DOM → tiers (a step stays a plain role string when it is just one role, one signer)
+          tiers.forEach((t, i) => {
+            const chain = [];
+            for (let j = 0; j < 4; j++) {
+              const role = (q(`[data-role="${i}.${j}"]`) || {}).value || "";
+              const us = [...bd.querySelectorAll(`[data-user="${i}.${j}"]:checked`)].map(c => c.value);
+              const need = Math.max(1, Number((q(`[data-need="${i}.${j}"]`) || {}).value) || 1);
+              if (!role && !us.length) continue;
+              chain.push(!us.length && need === 1 ? role : { roles: role ? [role] : [], users: us, need });
+            }
+            t.chain = chain;
+          });
+        }
         function draw() {
-          q("#mx-rows").innerHTML = tiers.map((t, i) => `<div class="card p-3 mb-2"><div class="flex flex-wrap items-end gap-2">
-            <div><label class="field">ບໍ່ເກີນ (₭) — ວ່າງ = ບໍ່ຈຳກັດ</label><input class="input num" type="number" data-max="${i}" value="${t.max === null ? "" : t.max}" ${can ? "" : "disabled"}></div>
-            ${[0, 1, 2].map(j => `<div><label class="field">ຂັ້ນ ${j + 1}</label><select class="input" data-ch="${i}" data-j="${j}" ${can ? "" : "disabled"}><option value="">—</option>${ROLES.map(rl => `<option ${t.chain[j] === rl ? "selected" : ""}>${rl}</option>`).join("")}</select></div>`).join("")}
-            ${can && tiers.length > 1 ? `<button class="text-red-500 mb-2" data-rm="${i}">✕</button>` : ""}</div></div>`).join("");
+          q("#mx-rows").innerHTML = tiers.map((t, i) => `<div class="card p-3 mb-2"><div class="flex items-end justify-between gap-2 mb-2">
+            <div><label class="field">ບໍ່ເກີນ (₭) — ວ່າງ = ບໍ່ຈຳກັດ</label><input class="input num" style="max-width:220px" type="number" data-max="${i}" value="${t.max === null ? "" : t.max}" ${dis}></div>
+            ${can && tiers.length > 1 ? `<button class="text-red-500" data-rm="${i}" title="ລຶບວົງເງິນນີ້">✕</button>` : ""}</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px">${[0, 1, 2, 3].map(j => stepHtml(t, i, j)).join("")}</div></div>`).join("");
           bd.querySelectorAll("[data-max]").forEach(el => el.onchange = () => { tiers[+el.dataset.max].max = el.value === "" ? null : Number(el.value); });
-          bd.querySelectorAll("[data-ch]").forEach(el => el.onchange = () => { const t = tiers[+el.dataset.ch]; t.chain[+el.dataset.j] = el.value; t.chain = t.chain.slice(0, 3); });
-          bd.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { tiers.splice(+b.dataset.rm, 1); draw(); });
+          bd.querySelectorAll("[data-rm]").forEach(b2 => b2.onclick = () => { read(); tiers.splice(+b2.dataset.rm, 1); draw(); });
+          if (q("#mx-inherit")) { const dim = () => { q("#mx-rows").style.opacity = q("#mx-inherit").checked ? ".45" : "1"; q("#mx-rows").style.pointerEvents = q("#mx-inherit").checked ? "none" : ""; }; q("#mx-inherit").onchange = dim; dim(); }
         }
         draw();
         if (!can) return;
-        q("#mx-add").onclick = () => { tiers.push({ max: null, chain: ["Manager"] }); draw(); };
+        q("#mx-add").onclick = () => { read(); tiers.push({ max: null, chain: ["Manager"] }); draw(); };
         q("#mx-save").onclick = () => {
           try {
-            tiers.forEach(t => { t.chain = t.chain.filter(Boolean); if (new Set(t.chain).size !== t.chain.length) throw new Error("ບົດບາດຊ້ຳກັນໃນຂັ້ນດຽວ"); });
-            Approval.setMatrix(tiers);
-            const cd = Number(q("#mx-clear").value) || 15;
-            const rd = q("#mx-docs").checked;
-            if (Store.get("settings", "flows")) Store.update("settings", "flows", { clear_days: cd, require_docs: rd }); else Store.insert("settings", { id: "flows", clear_days: cd, require_docs: rd });
+            if (scope !== "*" && q("#mx-inherit").checked) { Approval.setTypeTiers(scope, null); close(); UI.toast("ໃຊ້ຂັ້ນຄ່າເລີ່ມຕົ້ນ", "ok"); return; }
+            read();
+            tiers.forEach(t => { if (!t.chain.length) throw new Error("ທຸກວົງເງິນຕ້ອງມີຢ່າງໜ້ອຍ 1 ຂັ້ນ"); });
+            if (scope === "*") {
+              Approval.setMatrix(tiers);
+              const cd = Number(q("#mx-clear").value) || 15, rd = q("#mx-docs").checked;
+              if (Store.get("settings", "flows")) Store.update("settings", "flows", { clear_days: cd, require_docs: rd }); else Store.insert("settings", { id: "flows", clear_days: cd, require_docs: rd });
+            } else Approval.setTypeTiers(scope, tiers);
             close(); UI.toast("ບັນທຶກຂັ້ນອະນຸມັດແລ້ວ (ໃຊ້ກັບຄຳຂໍໃໝ່)", "ok");
           } catch (e) { UI.toast(e.message, "err"); }
         };

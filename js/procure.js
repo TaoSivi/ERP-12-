@@ -77,7 +77,7 @@
   function rolesFor(c) {
     const st = stageOf(c);
     if (st === "draft") return ALL_ROLES;
-    if (st === "pr_approval") { const cs = Approval.chainState(c, "PURCHASE", Number(c.est_total) || estTotal(c.id)); return cs.role ? [cs.role, "Admin"] : []; }
+    if (st === "pr_approval") { const rs = Approval.stepRoles(c, "PURCHASE", Number(c.est_total) || estTotal(c.id)); return rs.length ? rs.concat(["Admin"]) : []; }
     if (st === "sourcing") return ["Purchasing", "Manager", "Admin"];
     if (st === "po_approval") { const po = poOf(c), lim = settings().approval_limit; return lim > 0 && po && Number(po.total) > lim ? ["Admin"] : ["Manager", "Admin"]; }
     if (st === "receiving") return ["Warehouse", "Purchasing", "Manager", "Admin"];
@@ -88,10 +88,9 @@
   // Segregation of duties: the role that prepared a step may not approve it (Admin excepted).
   function sodConflict(c, role) {
     const st = stageOf(c);
-    // one role approves at most one step of a chain — this applies to Admin too
-    if (st === "pr_approval" && (c.approvals_done || []).some(d => d.role === role)) return "ບົດບາດນີ້ອະນຸມັດຂັ້ນກ່ອນແລ້ວ";
+    // PR approval follows the shared chain rules: one signer, one signature; the requester cannot sign; named people / N signers per step
+    if (st === "pr_approval") { const ca = Approval.canApproveStep(c, "PURCHASE", Number(c.est_total) || estTotal(c.id), role, lastActorRole(c, "draft", "submit")); return ca.ok ? null : ca.why; }
     if (role === "Admin") return null;
-    if (st === "pr_approval" && lastActorRole(c, "draft", "submit") === role) return "ຜູ້ຍື່ນຂໍ ອະນຸມັດເອງບໍ່ໄດ້ — ໃຫ້ບົດບາດອື່ນອະນຸມັດ";
     if (st === "po_approval" && lastActorRole(c, "sourcing", "create_po") === role) return "ຜູ້ສ້າງ PO ອະນຸມັດ PO ເອງບໍ່ໄດ້ — ໃຫ້ບົດບາດອື່ນອະນຸມັດ";
     return null;
   }
@@ -134,11 +133,11 @@
   }
   function approvePR(id, role, note) {
     const c = getCase(id); assertStage(c, "pr_approval"); assertCan(c, role);
-    const done = (c.approvals_done || []).concat([{ role, at: new Date().toISOString() }]);
+    const ap = Approval.addApproval(c, "PURCHASE", Number(c.est_total) || estTotal(c.id), role);
     log(c, "pr_approval", "approve", role, note);
     const chain = c.chain && c.chain.length ? c.chain : Approval.chainFor("PURCHASE", Number(c.est_total) || estTotal(c.id));
-    if (done.length < chain.length) return Store.update("purchase_requisitions", c.id, { approvals_done: done, chain });
-    setStage(c, "sourcing", { approvals_done: done, chain });
+    if (!ap.complete) return Store.update("purchase_requisitions", c.id, { approvals_done: ap.done, chain });
+    setStage(c, "sourcing", { approvals_done: ap.done, chain });
   }
   function rejectPR(id, role, note) {
     const c = getCase(id); assertStage(c, "pr_approval"); assertCan(c, role);

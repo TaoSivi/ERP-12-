@@ -34,36 +34,79 @@
     const m = Store.get("settings", "approval_matrix");
     return { tiers: (m && Array.isArray(m.tiers) && m.tiers.length ? m.tiers : DEFAULT_TIERS), by_type: (m && m.by_type) || {} };
   }
-  function setMatrix(tiers, byType) {
+  function cleanTiers(tiers) {
     const clean = (tiers || []).map(t => ({ max: t.max === null || t.max === "" || t.max === undefined ? null : Number(t.max), chain: (t.chain || []).filter(Boolean) }))
       .filter(t => t.chain.length).sort((a, b) => (a.max === null) - (b.max === null) || (a.max || 0) - (b.max || 0));
     if (!clean.length) throw new Error("ຕ້ອງມີຢ່າງໜ້ອຍ 1 ຂັ້ນ");
     if (clean[clean.length - 1].max !== null) clean.push({ max: null, chain: clean[clean.length - 1].chain.slice() });
-    const row = { tiers: clean, by_type: byType || matrix().by_type };
+    return clean;
+  }
+  function saveMatrix(row) {
     if (Store.get("settings", "approval_matrix")) Store.update("settings", "approval_matrix", row);
     else Store.insert("settings", Object.assign({ id: "approval_matrix" }, row));
+  }
+  function setMatrix(tiers, byType) { saveMatrix({ tiers: cleanTiers(tiers), by_type: byType || matrix().by_type }); }
+  // chain for ONE request type (tiers = null → fall back to the default chain)
+  function setTypeTiers(type, tiers) {
+    const m = matrix(), bt = Object.assign({}, m.by_type);
+    if (tiers) bt[type] = cleanTiers(tiers); else delete bt[type];
+    saveMatrix({ tiers: m.tiers, by_type: bt });
   }
   function chainFor(type, amount) {
     const m = matrix(), tiers = m.by_type[type] || m.tiers, a = Number(amount) || 0;
     const t = tiers.find(x => x.max === null || a <= Number(x.max)) || tiers[tiers.length - 1];
     return t.chain.slice();
   }
-  // generic chain state: doc.approvals_done = [{ role, step }]
+  /* ---------- approval steps ----------
+     A step is a role name ("Manager") or { roles:[...], users:[userId,...], need:N }:
+       roles / users   who may sign this step (either list matches)
+       need            how many DIFFERENT people must sign it (default 1)
+     Chains stay plain role strings unless a step names a person or needs N > 1, so existing data is untouched.
+     A signature's identity is the user when someone is signed in as a user, otherwise the role. */
+  const normStep = e => typeof e === "string" ? { roles: [e], users: [], need: 1 }
+    : { roles: (e.roles || []).filter(Boolean), users: (e.users || []).filter(Boolean), need: Math.max(1, Number(e.need) || 1) };
+  const userName = id => { const u = Store.get("users", id); return u ? u.name : id; };
+  function stepLabel(e) { const s = normStep(e), parts = s.roles.concat(s.users.map(userName)); return (parts.join(" / ") || "—") + (s.need > 1 ? " ×" + s.need : ""); }
+  const chainLabels = chain => (chain || []).map(stepLabel);
+  const whoAmI = id => id !== undefined ? (id || "") : ((window.AppCtx && AppCtx.currentUserId && AppCtx.currentUserId()) || "");
+  const sigKey = d => d.user || d.role;
+  // doc.approvals_done = [{ role, user?, name?, step, at }]; records without `step` are old data: one signature per step, in order
   function chainState(doc, type, amount) {
     const chain = doc.chain && doc.chain.length ? doc.chain : chainFor(type, amount);
-    const done = doc.approvals_done || [];
-    return { chain, done, step: done.length, role: chain[done.length] || null, complete: done.length >= chain.length };
+    const steps = chain.map(normStep);
+    const done = (doc.approvals_done || []).map((d, i) => Object.assign({}, d, { step: d.step != null ? d.step : i }));
+    const count = steps.map((_, i) => done.filter(d => d.step === i).length);
+    const cur = count.findIndex((c, i) => c < steps[i].need), complete = cur === -1;
+    const step = complete ? steps.length : cur;
+    return { chain, steps, done, count, step, role: complete ? null : stepLabel(chain[step]), complete, need: complete ? 0 : steps[step].need };
   }
-  // may `role` approve the current step of `doc`?
-  function canApproveStep(doc, type, amount, role, requesterRole) {
+  // may this signer act on the current step of `doc`?
+  function canApproveStep(doc, type, amount, role, requesterRole, userId) {
     const st = chainState(doc, type, amount);
     if (st.complete) return { ok: false, why: "ອະນຸມັດຄົບແລ້ວ" };
-    const used = st.done.map(d => d.role);
-    if (used.indexOf(role) !== -1) return { ok: false, why: "ບົດບາດນີ້ອະນຸມັດຂັ້ນກ່ອນແລ້ວ — ໃຫ້ " + st.role + " ອະນຸມັດ" };
-    if (role !== st.role && role !== "Admin") return { ok: false, why: "ລໍ " + st.role + " ອະນຸມັດ (ຂັ້ນ " + (st.step + 1) + "/" + st.chain.length + ")" };
-    if (role !== "Admin" && role === requesterRole) return { ok: false, why: "ຜູ້ຂໍ ອະນຸມັດເອງບໍ່ໄດ້ — ໃຫ້ " + st.role + " ຄົນອື່ນອະນຸມັດ" };
+    const uid = whoAmI(userId), me = uid || role, step = st.steps[st.step];
+    if (st.done.some(d => sigKey(d) === me)) return { ok: false, why: uid ? "ທ່ານອະນຸມັດຂັ້ນກ່ອນແລ້ວ — ໃຫ້ຄົນອື່ນອະນຸມັດ" : "ບົດບາດນີ້ອະນຸມັດຂັ້ນກ່ອນແລ້ວ — ໃຫ້ " + st.role + " ອະນຸມັດ" };
+    const listed = step.roles.indexOf(role) !== -1 || (uid && step.users.indexOf(uid) !== -1);
+    if (!listed && role !== "Admin") return { ok: false, why: "ລໍ " + st.role + " ອະນຸມັດ (ຂັ້ນ " + (st.step + 1) + "/" + st.chain.length + (step.need > 1 ? " · " + st.count[st.step] + "/" + step.need + " ຄົນ" : "") + ")" };
+    const reqUser = doc.requester_user || "";
+    if (uid && reqUser ? uid === reqUser : (role !== "Admin" && role === requesterRole)) return { ok: false, why: "ຜູ້ຂໍ ອະນຸມັດເອງບໍ່ໄດ້ — ໃຫ້ " + st.role + " ຄົນອື່ນອະນຸມັດ" };
     return { ok: true, why: "" };
   }
+  // add this signer's approval; `complete` is true when that was the last signature the chain needed
+  function addApproval(doc, type, amount, role, userId) {
+    const st = chainState(doc, type, amount), uid = whoAmI(userId);
+    const entry = { role, step: st.step, at: new Date().toISOString() };
+    if (uid) { entry.user = uid; entry.name = userName(uid); }
+    const done = st.done.concat([entry]);
+    return { done, complete: chainState({ chain: st.chain, approvals_done: done }, type, amount).complete };
+  }
+  // roles that may sign the current step (a named user counts through their own role)
+  function stepRoles(doc, type, amount) {
+    const st = chainState(doc, type, amount); if (st.complete) return [];
+    const s = st.steps[st.step];
+    return s.roles.concat(s.users.map(id => (Store.get("users", id) || {}).role).filter(Boolean));
+  }
+  const hasSigned = (doc, role, userId) => { const me = whoAmI(userId) || role; return (doc.approvals_done || []).some(d => sigKey(d) === me); };
 
   /* =================== requests =================== */
   const TYPES = {
@@ -227,7 +270,7 @@
     if (!(amount > 0)) throw new Error("ໃສ່ຈຳນວນເງິນ");
     if (def.check) def.check(f, { ccy, rate });
     const base = { type, generic: true, number: Acc.nextVoucher(def.kind, "requests", date), date, purpose: data.purpose, dept: data.dept || "",
-      amount, ccy, rate, fields: f, docs: {}, project_id: def.project ? String(data.project_id || "") : "", requester_role: role, stage: "draft", approvals_done: [], created_at: new Date().toISOString() };
+      amount, ccy, rate, fields: f, docs: {}, project_id: def.project ? String(data.project_id || "") : "", requester_role: role, requester_user: whoAmI(), requester_name: whoAmI() ? userName(whoAmI()) : "", stage: "draft", approvals_done: [], created_at: new Date().toISOString() };
     if (vlines) base.vlines = vlines;
     base.payee = def.payee(f, base);
     const r = Store.insert("requests", base);
@@ -267,7 +310,7 @@
   const getReq = id => { const r = Store.get("requests", id); if (!r) throw new Error("ບໍ່ພົບຄຳຂໍ"); return r; };
   const linesOf = id => Store.where("request_lines", l => l.request_id === id);
   const history = id => Store.where("approvals", a => a.doc_id === id).sort((a, b) => a.ts.localeCompare(b.ts));
-  function log(r, action, role, note) { Store.insert("approvals", { doc_type: r.type, doc_id: r.id, doc_ref: r.number, step: r.stage, action, role, note: note || "", ts: new Date().toISOString() }); }
+  function log(r, action, role, note) { const uid = whoAmI(); Store.insert("approvals", { doc_type: r.type, doc_id: r.id, doc_ref: r.number, step: r.stage, action, role, user: uid, name: uid ? userName(uid) : "", note: note || "", ts: new Date().toISOString() }); }
   function set(r, patch) { Store.update("requests", r.id, patch); return Store.get("requests", r.id); }
   const key = s => String(s || "").trim().toLowerCase();
 
@@ -295,7 +338,7 @@
     if (VDEFS[type]) return createV(type, data, role);
     const date = data.date || today();
     const base = { type, number: Acc.nextNumber(TYPES[type].prefix, "requests", date), date, purpose: data.purpose, dept: data.dept || "",
-      requester_role: role, stage: "draft", approvals_done: [], created_at: new Date().toISOString() };
+      requester_role: role, requester_user: whoAmI(), requester_name: whoAmI() ? userName(whoAmI()) : "", stage: "draft", approvals_done: [], created_at: new Date().toISOString() };
     let r;
     if (type === "ADV") {
       if (!String(data.payee || "").trim()) throw new Error("ໃສ່ຊື່ຜູ້ເບີກ");
@@ -339,23 +382,23 @@
   }
 
   /* ---------- approval ---------- */
-  function canAct(r, role) {
+  function canAct(r, role, userId) {
     if (ENDED[r.stage]) return { ok: false, why: STAGE_LABEL[r.stage] };
     if (r.stage === "draft") return role === r.requester_role || role === "Admin" || role === "Manager" ? { ok: true, why: "" } : { ok: false, why: "ລໍຜູ້ຂໍສົ່ງ" };
-    if (r.stage === "approval") return canApproveStep(r, r.type, amountOf(r), role, r.requester_role);
+    if (r.stage === "approval") return canApproveStep(r, r.type, amountOf(r), role, r.requester_role, userId);
     if (r.stage === "payout" || r.stage === "refund") return PAYER_ROLES.indexOf(role) !== -1 ? { ok: true, why: "" } : { ok: false, why: "ລໍ ແຄຊຽ / ບັນຊີ" };
     if (r.stage === "open") return { ok: false, why: "ລໍ " + r.payee + " ເຄລຍເງິນ (ກຳນົດ " + r.due_clear + ")" };
     return { ok: false, why: "" };
   }
-  function approve(id, role, note, date) {
+  function approve(id, role, note, date, userId) {
     const r = getReq(id);
     if (r.stage !== "approval") throw new Error("ບໍ່ໄດ້ຢູ່ຂັ້ນອະນຸມັດ");
-    const c = canAct(r, role); if (!c.ok) throw new Error(c.why);
-    const done = (r.approvals_done || []).concat([{ role, at: new Date().toISOString() }]);
-    if (done.length >= (r.chain || []).length) { checkDocs(r); if (r.generic) Acc.assertOpen(date || today()); } // nothing is written if the evidence or the period is not OK
+    const c = canAct(r, role, userId); if (!c.ok) throw new Error(c.why);
+    const ap = addApproval(r, r.type, amountOf(r), role, userId);
+    if (ap.complete) { checkDocs(r); if (r.generic) Acc.assertOpen(date || today()); } // nothing is written if the evidence or the period is not OK
     log(r, "approve", role, note);
-    const r2 = set(r, { approvals_done: done });
-    if (done.length < r2.chain.length) return r2;           // more approvers to go
+    const r2 = set(r, { approvals_done: ap.done });
+    if (!ap.complete) return r2;                            // more signatures to go
     return onFullyApproved(r2, role, date || today());      // last approval → book it
   }
   function reject(id, role, note) {
@@ -479,7 +522,7 @@
   const NEXT = { draft: "ສົ່ງຂໍອະນຸມັດ", approval: "ອະນຸມັດ", payout: "ຈ່າຍເງິນ", refund: "ຮັບເງິນຄືນ", open: "ເຄລຍເງິນສຳຮອງ" };
   function nextAction(r, role) { const c = canAct(r, role); return { label: NEXT[r.stage] || "", allowed: c.ok, why: c.why }; }
 
-  window.Approval = { DEFAULT_TIERS, matrix, setMatrix, chainFor, chainState, canApproveStep };
+  window.Approval = { DEFAULT_TIERS, matrix, setMatrix, setTypeTiers, chainFor, chainState, canApproveStep, addApproval, stepRoles, hasSigned, stepLabel, chainLabels, normStep };
   window.Flows = { VDEFS, CCYS, lastRate, cashBankAccounts, docsOf, docDefsFor, missingDocs, setDocs, summary, TYPES, STAGE_LABEL, ENDED, settings, create, submit, approve, reject, cancel, pay, receiveRefund, canAct, nextAction, queue,
     linesOf, history, totalOf, amountOf, splitVat, openAdvances, overdueAdvances, advanceOutstanding, warnings };
 })();
