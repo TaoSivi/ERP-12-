@@ -83,7 +83,7 @@
     return `<div class="flex flex-wrap items-start justify-between gap-3 mb-5">
       <div><h1 class="page-title">${esc(title)}</h1>
       ${subtitle ? `<p class="page-sub">${esc(subtitle)}</p>` : ""}</div>
-      <div class="flex flex-wrap gap-2 justify-start sm:justify-end items-center">${more}${a.visible.join("")}</div></div>`;
+      <div class="flex flex-wrap gap-2 justify-start sm:justify-end items-center page-actions">${more}${a.visible.join("")}</div></div>`;
   }
 
   function kpi(label, value, sub, color) {
@@ -100,11 +100,25 @@
     const body = rows.length ? rows.map(r => {
       const tds = cols.map(c => {
         const val = c.render ? c.render(r) : esc(r[c.key]);
-        return `<td class="${c.cls || ""}">${val}</td>`;
+        return `<td class="${c.cls || ""}" data-label="${esc(c.h)}">${val}</td>`;
       }).join("");
       return `<tr ${opts.rowClick ? 'style="cursor:pointer"' : ""} data-id="${esc(r.id)}">${tds}</tr>`;
-    }).join("") : `<tr><td colspan="${cols.length}" class="text-center text-slate-400 py-8">ຍັງບໍ່ມີຂໍ້ມູນ</td></tr>`;
+    }).join("") : `<tr><td colspan="${cols.length}" class="text-center py-10"><p class="text-slate-400 mb-3">ຍັງບໍ່ມີຂໍ້ມູນ</p><button class="btn btn-primary" data-empty-act hidden></button></td></tr>`;
     return `<div class="card overflow-hidden"><div class="tbl-wrap"><table class="data"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div></div>`;
+  }
+  // empty-state button mirrors the page's primary action (label + click); stays hidden if the page has none
+  if (typeof document !== "undefined") {
+    const fillEmpty = () => document.querySelectorAll("[data-empty-act][hidden]").forEach(b => {
+      const p = document.querySelector(".page-actions .btn-primary");
+      if (p && p.textContent.trim()) { b.textContent = p.textContent.trim(); b.hidden = false; }
+    });
+    const v = document.getElementById("view");
+    if (v && typeof MutationObserver !== "undefined") new MutationObserver(fillEmpty).observe(v, { childList: true, subtree: true });
+    document.addEventListener("click", e => {
+      const b = e.target.closest && e.target.closest("[data-empty-act]");
+      const p = document.querySelector(".page-actions .btn-primary");
+      if (b && p) p.click();
+    });
   }
   window.UI = { money, esc, today, fmtDate, toast, statusBadge, modal, confirmDialog, pageHead, splitActions, kpi, table };
 })();

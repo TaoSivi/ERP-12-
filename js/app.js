@@ -53,9 +53,18 @@
       return `<div class="nav-group">${E(g.group)}</div>` + items.map(([route, ico, label]) => `<a class="nav-item" href="#/${route}"><span>${E(label)}</span></a>`).join("");
     }).join("");
     nav.innerHTML = html;
+    buildBottomNav();
+  }
+  // phone-only tab bar: first 4 modules this role may open + "ເມນູ" (opens the full sidebar)
+  const BOTTOM = [["dashboard", "home", "ໜ້າຫຼັກ"], ["mytasks", "checkcircle", "ວຽກຂ້ອຍ"], ["invoices", "receipt", "Invoice"], ["bills", "inbox", "Bill"], ["pos", "cart", "POS"], ["inventory", "package", "ສິນຄ້າ"], ["reports", "trending", "ລາຍງານ"]];
+  function buildBottomNav() {
+    let bn = document.getElementById("bottomNav");
+    if (!bn) { bn = document.createElement("nav"); bn.id = "bottomNav"; document.body.appendChild(bn); }
+    bn.innerHTML = BOTTOM.filter(([r]) => allowed(r)).slice(0, 4).map(([r, ic, l]) => `<a class="bn-item" href="#/${r}">${Icons.svg(ic, 22)}<span>${E(l)}</span></a>`).join("") + `<button class="bn-item" id="bnMenu">${Icons.svg("menu", 22)}<span>ເມນູ</span></button>`;
+    bn.querySelector("#bnMenu").onclick = () => document.getElementById("sidebar").classList.toggle("-translate-x-full");
   }
   function setActive(route) {
-    document.querySelectorAll(".nav-item").forEach(a =>
+    document.querySelectorAll(".nav-item, .bn-item[href]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#/" + route));
   }
 
