@@ -1369,10 +1369,11 @@
   }
 
   function workingCapitalModal() {
-    const w = Acc.workingCapital();
+    const w = Acc.workingCapital(), dd = v => v == null ? "-" : v + " ວັນ";
+    const row = (l, v, bold) => `<div class="flex justify-between ${bold ? "font-semibold border-t border-slate-200 pt-2" : ""}"><span class="text-slate-600">${l}</span><span>${v}</span></div>`;
     UI.modal("Working Capital", `<div class="space-y-2 text-sm">
       ${plRow("ລູກໜີ້ AR", w.ar)}${plRow("ເຈົ້າໜີ້ AP", w.ap)}${plRow("ສິນຄ້າຄົງເຫຼືອ", w.inv)}
-      <hr class="my-2">${plRow("DSO (ວັນຮັບໜີ້)", w.dso)}${plRow("DPO (ວັນຈ່າຍໜີ້)", w.dpo)}${plRow("DIO (ວັນສະຕັອກ)", w.dio)}${plRow("CCC (Cash Cycle)", w.ccc, true)}</div>`);
+      <hr class="my-2">${row("DSO (ວັນຮັບໜີ້)", dd(w.dso))}${row("DPO (ວັນຈ່າຍໜີ້)", dd(w.dpo))}${row("DIO (ວັນສະຕັອກ)", dd(w.dio))}${row("CCC (Cash Cycle)", dd(w.ccc), true)}</div>`);
   }
 
   function fixedAssetReport() {
@@ -2102,7 +2103,7 @@
   }
   function whtEntryModal() {
     const vends = Store.all("vendors"); if (!vends.length) return UI.toast("ເພີ່ມຜູ້ສະໜອງກ່ອນ", "warn");
-    formModal("ຫັກ WHT (ອາກອນຫັກທີ່ແຫຼ່ງ)", [{ name: "vendor_id", label: "ຜູ້ສະໜອງ", type: "select", options: vends.map(v => ({ value: v.id, label: v.name })) }, { name: "base", label: "ຍອດຖານ", type: "number", col: "col-span-1" }, { name: "rate", label: "ອັດຕາ %", type: "number", col: "col-span-1" }], { rate: 10 }, (d, close) => { if (d.base <= 0) return UI.toast("ໃສ່ຍອດ", "warn"); const tax = Acc.whtEntry({ vendor_id: d.vendor_id, base: d.base, rate: d.rate, date: UI.today() }); close(); UI.toast("ຫັກ WHT " + M(tax), "ok"); whtCertPrint(d.vendor_id, d.base, d.rate, tax); });
+    formModal("ຫັກ WHT (ອາກອນຫັກທີ່ແຫຼ່ງ)", [{ name: "bill_id", label: "ຫັກຈາກ Bill (ແນະນຳ — ໃຫ້ຍອດເຈົ້າໜີ້ຕໍ່ Bill ຖືກ)", type: "select", options: [{ value: "", label: "— ບໍ່ຜູກ Bill —" }].concat(Store.where("bills", b => b.status === "posted" || b.status === "partial").map(b => ({ value: b.id, label: b.number + " · " + ((Store.get("vendors", b.vendor_id) || {}).name || "") + " · ຄ້າງ " + M(Number(b.total) - Number(b.paid || 0)) }))) }, { name: "vendor_id", label: "ຜູ້ສະໜອງ (ຖ້າບໍ່ຜູກ Bill)", type: "select", options: vends.map(v => ({ value: v.id, label: v.name })) }, { name: "base", label: "ຍອດຖານ", type: "number", col: "col-span-1" }, { name: "rate", label: "ອັດຕາ %", type: "number", col: "col-span-1" }], { rate: 10 }, (d, close) => { if (d.base <= 0) return UI.toast("ໃສ່ຍອດ", "warn"); let tax; try { tax = Acc.whtEntry({ vendor_id: d.vendor_id, bill_id: d.bill_id || "", base: d.base, rate: d.rate, date: UI.today() }); } catch (e) { return UI.toast(e.message, "err"); } const vid = d.bill_id ? (Store.get("bills", d.bill_id) || {}).vendor_id : d.vendor_id; close(); UI.toast("ຫັກ WHT " + M(tax), "ok"); whtCertPrint(vid, d.base, d.rate, tax); bills(); });
   }
   function whtCertPrint(vid, base, rate, tax) {
     const v = Store.get("vendors", vid) || {}, comp = activeCompany();

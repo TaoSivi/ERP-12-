@@ -342,8 +342,8 @@
     const otherExp = round(expense - cogs);
     return { revenue: round(revenue), cogs: round(cogs), grossProfit, expense: round(otherExp), net: round(revenue - expense) };
   }
-  function arOutstanding() { return Store.where("invoices", i => i.status === "posted" || i.status === "partial").reduce((s, i) => s + (Number(i.total) - (Number(i.paid) || 0)), 0); }
-  function apOutstanding() { return Store.where("bills", b => b.status === "posted" || b.status === "partial").reduce((s, b) => s + (Number(b.total) - (Number(b.paid) || 0)), 0); }
+  function arOutstanding() { return Store.where("invoices", i => i.status === "posted" || i.status === "partial" || i.status === "paid").reduce((s, i) => s + (Number(i.total) - (Number(i.paid) || 0)), 0); }
+  function apOutstanding() { return Store.where("bills", b => b.status === "posted" || b.status === "partial" || b.status === "paid").reduce((s, b) => s + (Number(b.total) - (Number(b.paid) || 0)), 0); }
   function cashBalance() { return Store.all("bank_accounts").reduce((s, b) => s + accountBalance(b.gl_account) + (Number(b.opening_balance)||0), 0); }
 
   function aging(kind) {
@@ -542,7 +542,8 @@
       if (j.date > t) return;
       closing += net;
       const other = ls.filter(l => !cash.has(String(l.account)));
-      const section = other.some(l => /^17/.test(String(l.account))) ? "ລົງທຶນ (ຊັບສິນຖາວອນ)" : other.some(l => (acct[l.account] || {}).type === "Equity") ? "ການເງິນ (ທຶນ / ກູ້ຢືມ)" : "ດຳເນີນງານ";
+      const assetPay = j.source_type === "PAYMENT" && (() => { const p = Store.get("payments", j.source_id); const b = p && p.ref_type === "BILL" ? Store.get("bills", p.ref_id) : null; return !!(b && b.po_id && Store.where("po_lines", pl => pl.po_id === b.po_id).some(pl => pl.kind === "asset")); })();
+      const section = assetPay || other.some(l => /^17/.test(String(l.account))) ? "ລົງທຶນ (ຊັບສິນຖາວອນ)" : other.some(l => (acct[l.account] || {}).type === "Equity") ? "ການເງິນ (ທຶນ / ກູ້ຢືມ)" : "ດຳເນີນງານ";
       const label = CF_LABEL[j.source_type] || j.source_type || "ອື່ນໆ";
       const k = section + "|" + label;
       rows[k] = rows[k] || { section, label, inflow: 0, outflow: 0 };
@@ -612,9 +613,11 @@
   function workingCapital() {
     const ar = arOutstanding(), ap = apOutstanding();
     const inv = Store.where("items", i => i.type === "stock").reduce((s, i) => s + stockValue(i.id), 0);
-    const rev = Math.abs(sumByType("Revenue")) || 1, cogs = Math.abs(accountBalance("5100")) || 1;
-    const dso = round(ar / rev * 365), dpo = round(ap / cogs * 365), dio = round(inv / cogs * 365);
-    return { dso, dpo, dio, ccc: round(dio + dso - dpo), ar: round(ar), ap: round(ap), inv: round(inv) };
+    const rev = Math.abs(sumByType("Revenue")), cogs = Math.abs(accountBalance("5100"));
+    const purch = Store.where("bills", b => b.status !== "draft" && b.status !== "void").reduce((s, b) => s + Number(b.total || 0), 0) || cogs;
+    const days = (x, base) => base > 0 ? Math.round(x / base * 365) : null; // no base (e.g. a service company has no COGS) → n/a, not a nonsense number
+    const dso = days(ar, rev), dpo = days(ap, purch), dio = days(inv, cogs);
+    return { dso, dpo, dio, ccc: dso == null || dpo == null ? null : round((dio || 0) + dso - dpo), ar: round(ar), ap: round(ap), inv: round(inv) };
   }
 
   /* ---------- Catch-up depreciation & Project P&L (batch 5) ---------- */
@@ -684,10 +687,17 @@
     postJournal({ date: date || new Date().toISOString().slice(0,10), source_type: "PROFIT_TAX", source_id: "", memo: "ຕັ້ງສຳຮອງອາກອນກຳໄລ " + rate + "%", lines: [{ account: PA("PTAX_EXP"), debit: tax, credit: 0, memo: "ຄ່າອາກອນກຳໄລ" }, { account: PA("PTAX_PAY"), debit: 0, credit: tax, memo: "ອາກອນກຳໄລຄ້າງຈ່າຍ" }] });
     return tax;
   }
-  function whtEntry({ vendor_id, base, rate, date }) {
+  function whtEntry({ vendor_id, base, rate, date, bill_id }) {
     assertOpen(date);
     const tax = round(base * rate / 100);
+    const bill = bill_id ? Store.get("bills", bill_id) : null;
+    if (bill) { // withheld tax settles part of THIS bill: keeps the AP subledger equal to the ledger
+      const open = round(Number(bill.total) - (Number(bill.paid) || 0));
+      if (tax > open + 0.5) throw new Error("WHT ເກີນຍອດຄ້າງຂອງ Bill (ຄ້າງ " + open + ")");
+      vendor_id = bill.vendor_id;
+    }
     postJournal({ date: date || new Date().toISOString().slice(0,10), source_type: "WHT", source_id: vendor_id || "", memo: "ຫັກ WHT " + rate + "%", lines: [{ account: PA("AP"), debit: tax, credit: 0, memo: "ຫຼຸດເຈົ້າໜີ້ (WHT)" }, { account: PA("WHT"), debit: 0, credit: tax, memo: "WHT ຄ້າງຍືນ" }] });
+    if (bill) { const paid = round((Number(bill.paid) || 0) + tax); Store.update("bills", bill.id, { paid, status: paid >= Number(bill.total) - 0.5 ? "paid" : "partial" }); }
     return tax;
   }
 
