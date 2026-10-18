@@ -15,6 +15,7 @@
     { group: "ຄົນ & ແຜນ", items: [["payroll", "", "ເງິນເດືອນ & HR"], ["budget", "", "ງົບປະມານ"]] },
     { group: "ລາຍງານ", items: [["reports", "", "ລາຍງານ"], ["settings", "", "ຕັ້ງຄ່າ & Governance"]] }
   ];
+  const NAV_ICON = { dashboard: "home", customers: "users", invoices: "file", vendors: "truck", bills: "receipt", inventory: "package", banking: "landmark", gl: "book", assets: "building", payroll: "wallet", budget: "pie", reports: "chart", settings: "settings" };
   const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","invoices","bills","banking","gl","assets","budget","reports","settings"], Sales: ["dashboard","customers","invoices","reports"], Purchasing: ["dashboard","vendors","bills","inventory","reports"], Warehouse: ["dashboard","inventory","reports"], HR: ["dashboard","payroll","reports"], Cashier: ["dashboard","banking","reports"], Manager: null, Auditor: ["dashboard","gl","reports"], Viewer: ["dashboard","reports"], Custom: null };
   function currentRole() { try { return localStorage.getItem("laobooks_role") || "Admin"; } catch (e) { return "Admin"; } }
   function allowed(route) { const p = ROLE_PERMS[currentRole()]; return !p || p.indexOf(route) !== -1; }
@@ -23,14 +24,14 @@
     let html = NAV.map(g => {
       const items = g.items.filter(([route]) => allowed(route));
       if (!items.length) return "";
-      return `<div class="nav-group">${E(g.group)}</div>` + items.map(([route, ico, label]) => `<a class="nav-item" href="#/${route}"><span>${E(label)}</span></a>`).join("");
+      return `<div class="nav-group">${E(g.group)}</div>` + items.map(([route, ico, label]) => `<a class="nav-item" href="#/${route}">${UI.icon(NAV_ICON[route] || "file", 18)}<span>${E(label)}</span></a>`).join("");
     }).join("");
     const ind = (typeof getIndustry === "function") ? getIndustry() : "general";
     const tools = (typeof INDUSTRY_TOOLS !== "undefined" && INDUSTRY_TOOLS[ind]) || [];
     let toolsHtml = "";
     if (tools.length) {
       const nm = (typeof INDUSTRY_NAMES !== "undefined" && INDUSTRY_NAMES[ind]) || ind;
-      toolsHtml = `<div class="nav-group">⚡ ເຄື່ອງມືທຸລະກິດ: ${E(nm)}</div>` + tools.map(t => `<a class="nav-item" data-tool="${t[1]}"><span>${E(t[0])}</span></a>`).join("");
+      toolsHtml = `<div class="nav-group">ເຄື່ອງມືທຸລະກິດ: ${E(nm)}</div>` + tools.map(t => `<a class="nav-item" data-tool="${t[1]}"><span>${E(t[0])}</span></a>`).join("");
     }
     nav.innerHTML = toolsHtml + html;
     buildBottomNav();
@@ -40,7 +41,7 @@
   function buildBottomNav() {
     let bn = document.getElementById("bottomNav");
     if (!bn) { bn = document.createElement("nav"); bn.id = "bottomNav"; document.body.appendChild(bn); }
-    bn.innerHTML = BOTTOM.filter(([r]) => allowed(r)).slice(0, 4).map(([r, l]) => `<a class="bn-item" href="#/${r}">${E(l)}</a>`).join("") + '<button class="bn-item" id="bnMenu">ເມນູ</button>';
+    bn.innerHTML = BOTTOM.filter(([r]) => allowed(r)).slice(0, 4).map(([r, l]) => `<a class="bn-item" href="#/${r}">${UI.icon(NAV_ICON[r], 22)}<span>${E(l)}</span></a>`).join("") + `<button class="bn-item" id="bnMenu">${UI.icon("menu", 22)}<span>ເມນູ</span></button>`;
     bn.querySelector("#bnMenu").onclick = () => document.getElementById("sidebar").classList.toggle("-translate-x-full");
   }
   function setActive(route) {
@@ -137,7 +138,7 @@
             ${cfg.lineType === "item" ? `<td><input class="input num" data-f="discount" data-i="${idx}" type="number" value="${l.discount || 0}"/></td>` : ""}
             <td>${taxSel}</td>
             <td class="num">${M(gross)}</td>
-            <td><button class="text-red-500" data-del="${idx}">✕</button></td>
+            <td><button class="text-red-500" data-del="${idx}">${UI.icon("x")}</button></td>
           </tr>`;
         }).join("");
         tb.querySelectorAll("input,select").forEach(el => {
@@ -190,7 +191,7 @@
     ].filter(r => r[2] > 0 && allowed(r[0]));
     return `<div class="card p-5 mb-5"><h3 class="font-semibold mb-2">ຕ້ອງເຮັດວັນນີ້</h3>` + (rows.length
       ? rows.map(r => `<div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0"><span class="text-sm"><b>${r[2]}</b> ${E(r[1])}</span><a class="btn btn-ghost btn-sm" href="#/${r[0]}">${r[3]}</a></div>`).join("")
-      : '<p class="text-sm text-slate-400">ບໍ່ມີງານຄ້າງ ✓</p>') + `</div>`;
+      : '<p class="text-sm text-slate-400">ບໍ່ມີງານຄ້າງ</p>') + `</div>`;
   }
   // first-run checklist, Cloud Mode only (Demo Mode is pre-seeded); disappears once all 3 steps are done
   function onboardCard() {
@@ -239,10 +240,10 @@
         </div>
       </div>
       <div class="grid lg:grid-cols-2 gap-4 mb-4">
-        <div class="card p-5"><h3 class="font-semibold mb-3">🔴 Top 5 ເກີນກຳນົດ</h3>
+        <div class="card p-5"><h3 class="font-semibold mb-3 flex items-center gap-2">${UI.icon("alertcircle")} Top 5 ເກີນກຳນົດ</h3>
           ${Store.where("invoices",i=>(i.status==="posted"||i.status==="partial")&&new Date(i.due_date||i.date)<new Date()).sort((a,b)=>(a.due_date||"").localeCompare(b.due_date||"")).slice(0,5).map(i=>`<div class="flex justify-between text-sm py-1 border-b border-slate-100"><span>${E(i.number)} · ${E((Store.get("customers",i.customer_id)||{}).name||"")}</span><b>${M(Number(i.total)-(Number(i.paid)||0))}</b></div>`).join("")||'<p class="text-slate-400 text-sm">ບໍ່ມີ</p>'}
         </div>
-        <div class="card p-5"><h3 class="font-semibold mb-3">📄 ເອກະສານຄ້າງ</h3>
+        <div class="card p-5"><h3 class="font-semibold mb-3 flex items-center gap-2">${UI.icon("file")} ເອກະສານຄ້າງ</h3>
           <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
             <div class="flex justify-between"><span class="text-slate-500">Invoice draft</span><b>${Store.where("invoices",i=>i.status==="draft").length}</b></div>
             <div class="flex justify-between"><span class="text-slate-500">Bill draft</span><b>${Store.where("bills",b=>b.status==="draft").length}</b></div>
@@ -255,11 +256,11 @@
       </div>
       <div class="grid lg:grid-cols-2 gap-4">
         <div class="card p-5">
-          <h3 class="font-semibold mb-3">⚠️ ສິນຄ້າໃກ້ໝົດ (${low.length})</h3>
+          <h3 class="font-semibold mb-3 flex items-center gap-2">${UI.icon("alert")} ສິນຄ້າໃກ້ໝົດ (${low.length})</h3>
           ${low.length ? low.map(i => `<div class="flex justify-between text-sm py-1 border-b border-slate-100"><span>${E(i.name)}</span><span class="badge ${Number(i.qty) <= 0 ? "red" : "amber"}">${i.qty} ${E(i.uom || "")}</span></div>`).join("") : '<p class="text-slate-400 text-sm">ບໍ່ມີ</p>'}
         </div>
         <div class="card p-5">
-          <h3 class="font-semibold mb-3">📒 Journal ລ່າສຸດ</h3>
+          <h3 class="font-semibold mb-3 flex items-center gap-2">${UI.icon("book")} Journal ລ່າສຸດ</h3>
           ${recentJe.length ? recentJe.map(j => `<div class="flex justify-between text-sm py-1 border-b border-slate-100"><span>${E(j.number)} · ${E(j.memo)}</span><b>${M(j.total_debit)}</b></div>`).join("") : '<p class="text-slate-400 text-sm">ຍັງບໍ່ມີ</p>'}
         </div>
       </div>`;
@@ -345,7 +346,7 @@
         const t = Acc.invoiceTotals(lines);
         const exposure = custAR(cust.id) + t.total;
         if (Number(cust.credit_limit) > 0 && exposure > Number(cust.credit_limit))
-          UI.toast("⚠️ ເກີນວົງເງິນເຄຣດິດ (" + M(cust.credit_limit) + ")", "warn");
+          UI.toast("ເກີນວົງເງິນເຄຣດິດ (" + M(cust.credit_limit) + ")", "warn");
         if (issue) { try { Acc.postInvoice(inv); close(); UI.toast("ອອກ Invoice ສຳເລັດ — JE ຖືກສ້າງ", "ok"); invoices(); return; } catch (e) { UI.toast(e.message, "err"); } }
         close(); UI.toast("ສ້າງ Invoice ຮ່າງແລ້ວ", "ok"); viewInvoice(inv.id);
       }
@@ -359,8 +360,8 @@
     const bal = Number(inv.total || t.total) - (Number(inv.paid) || 0);
     const linesHtml = lines.map(l => { const it = Store.get("items", l.item_id) || {}; const g = l.qty * l.price - (l.discount || 0); return `<tr><td>${E(it.name)}</td><td class="num">${l.qty}</td><td class="num">${M(l.price)}</td><td class="num">${M(l.discount || 0)}</td><td class="num">${M(g)}</td></tr>`; }).join("");
     let actions = "";
-    if (inv.status === "draft") actions = `<button class="btn btn-primary" id="post">✔ Post (ສ້າງ JE)</button> <button class="btn btn-danger" id="del">ລຶບ</button>`;
-    else if (inv.status !== "paid") actions = `<button class="btn btn-primary" id="receive">💰 ຮັບເງິນ</button>`;
+    if (inv.status === "draft") actions = `<button class="btn btn-primary" id="post">${UI.icon("check")} Post (ສ້າງ JE)</button> <button class="btn btn-danger" id="del">ລຶບ</button>`;
+    else if (inv.status !== "paid") actions = `<button class="btn btn-primary" id="receive">${UI.icon("banknote")} ຮັບເງິນ</button>`;
     if (inv.status !== "draft" && inv.status !== "void") actions += ` <button class="btn btn-danger" id="voidinv">Void</button>`;
     if (inv.status !== "draft" && inv.status !== "void") actions += ` <button class="btn btn-ghost" id="assignser">ຜູກ Serial</button>`;
     UI.modal("Invoice " + inv.number, `
@@ -373,7 +374,7 @@
         <div>ຈ່າຍແລ້ວ: <b>${M(inv.paid || 0)}</b> · ຄ້າງ: <b class="${bal > 0 ? "text-red-600" : "text-green-600"}">${M(bal)}</b></div>
       </div></div>
       ${inv.je_id ? `<div class="hint mt-2">Journal: ${E((Store.get("journal_entries", inv.je_id) || {}).number || "")}</div>` : ""}
-      <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" id="icopy">ສຳເນົາ</button><button class="btn btn-ghost" id="iprint">🖨 ພິມ</button>${actions}</div>`, { wide: true, onMount: (body, close) => {
+      <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" id="icopy">ສຳເນົາ</button><button class="btn btn-ghost" id="iprint">${UI.icon("printer")} ພິມ</button>${actions}</div>`, { wide: true, onMount: (body, close) => {
         const post = body.querySelector("#post"), rec = body.querySelector("#receive"), del = body.querySelector("#del");
         const ipr = body.querySelector("#iprint"); if (ipr) ipr.onclick = () => invoicePrint(inv);
         const icp = body.querySelector("#icopy"); if (icp) icp.onclick = () => { close(); copyInvoice(inv); };
@@ -464,7 +465,7 @@
   /* ================= 05 · BILLS ================= */
   function bills() {
     const rows = Store.all("bills").sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
-    view().innerHTML = UI.pageHead("Bill & ຄ່າໃຊ້ຈ່າຍ", "Bills", `<button class="btn btn-ghost" id="bimport">Import</button><button class="btn btn-ghost" id="wht">WHT</button><button class="btn btn-ghost" id="qexp">⚡ Quick Expense</button><button class="btn btn-primary" id="add">+ ສ້າງ Bill</button>`) +
+    view().innerHTML = UI.pageHead("Bill & ຄ່າໃຊ້ຈ່າຍ", "Bills", `<button class="btn btn-ghost" id="bimport">Import</button><button class="btn btn-ghost" id="wht">WHT</button><button class="btn btn-ghost" id="qexp">${UI.icon("zap")} Quick Expense</button><button class="btn btn-primary" id="add">+ ສ້າງ Bill</button>`) +
       `<div class="grid grid-cols-3 gap-3 mb-4">${UI.kpi("ຍອດຄ້າງ AP", M(Acc.apOutstanding()))}${UI.kpi("ໃບທັງໝົດ", rows.length)}${UI.kpi("Draft", Store.where("bills", b => b.status === "draft").length)}</div>` +
       UI.table([{ h: "ເລກທີ", key: "number" }, { h: "ຜູ້ສະໜອງ", render: r => E((Store.get("vendors", r.vendor_id) || {}).name) }, { h: "ວັນທີ", render: r => UI.fmtDate(r.date) }, { h: "ຍອດ", cls: "num", render: r => M(r.total) }, { h: "ຄ້າງ", cls: "num", render: r => M(Number(r.total) - (Number(r.paid) || 0)) }, { h: "ສະຖານະ", render: r => UI.statusBadge(r.status) }, { h: "", render: r => `<button class="btn btn-ghost btn-sm" data-view="${r.id}">ເປີດ</button>` }], rows);
     view().querySelector("#add").onclick = () => newBill();
@@ -489,12 +490,12 @@
     const lines = Store.where("bill_lines", l => l.bill_id === id); const t = Acc.billTotals(lines);
     const bal = Number(bill.total || t.total) - (Number(bill.paid) || 0);
     const lh = lines.map(l => `<tr><td>${E(Acc.accName(l.account_id))}<div class="hint">${E(l.description || "")}</div></td><td class="num">${M(l.qty * l.price)}</td></tr>`).join("");
-    let actions = bill.status === "draft" ? `<button class="btn btn-primary" id="post">✔ Post</button> <button class="btn btn-danger" id="del">ລຶບ</button>` : (bill.status !== "paid" ? `<button class="btn btn-primary" id="pay">💸 ຈ່າຍເງິນ</button>` : "");
+    let actions = bill.status === "draft" ? `<button class="btn btn-primary" id="post">${UI.icon("check")} Post</button> <button class="btn btn-danger" id="del">ລຶບ</button>` : (bill.status !== "paid" ? `<button class="btn btn-primary" id="pay">${UI.icon("send")} ຈ່າຍເງິນ</button>` : "");
     if (bill.status !== "draft" && bill.status !== "void") actions += ` <button class="btn btn-danger" id="voidbill">Void</button>`;
     UI.modal("Bill " + bill.number, `<div class="flex justify-between mb-3"><div class="font-semibold text-lg">${E(vend.name)}</div><div>${UI.statusBadge(bill.status)}</div></div>
       <table class="data"><thead><tr><th>ບັນຊີ / ລາຍລະອຽດ</th><th class="num">ຍອດ</th></tr></thead><tbody>${lh}</tbody></table>
       <div class="text-right mt-3 text-sm"><div>ກ່ອນ VAT: <b>${M(t.subtotal)}</b></div><div>VAT: <b>${M(t.vat)}</b></div><div class="text-lg">ລວມ: <b class="text-brand-700">${M(bill.total || t.total)}</b></div><div>ຄ້າງ: <b>${M(bal)}</b></div></div>
-      <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" id="bcopy">ສຳເນົາ</button><button class="btn btn-ghost" id="bprint">🖨 ພິມ</button>${actions}</div>`, { wide: true, onMount: (body, close) => {
+      <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" id="bcopy">ສຳເນົາ</button><button class="btn btn-ghost" id="bprint">${UI.icon("printer")} ພິມ</button>${actions}</div>`, { wide: true, onMount: (body, close) => {
         const p = body.querySelector("#post"), pay = body.querySelector("#pay"), del = body.querySelector("#del");
         const bpr = body.querySelector("#bprint"); if (bpr) bpr.onclick = () => billPrint(bill);
         const bcp = body.querySelector("#bcopy"); if (bcp) bcp.onclick = () => { close(); copyBill(bill); };
@@ -580,7 +581,7 @@
   function gl() {
     let tab = "coa";
     function render() {
-      view().innerHTML = UI.pageHead("ບັນຊີແຍກປະເພດ", "General Ledger", `<button class="btn btn-ghost" id="ptax">ອາກອນກຳໄລ</button><button class="btn btn-ghost" id="obimport">Opening Bal</button><button class="btn btn-ghost" id="coaimport">Import CoA</button><button class="btn btn-primary" id="quickrec">⚡ Quick Record</button><button class="btn btn-ghost" id="coaexp">Export CoA</button><button class="btn btn-ghost" id="recur">Recurring</button><button class="btn btn-ghost" id="fxadj">FX Adjust</button><button class="btn btn-ghost" id="yearend">ປິດສິ້ນປີ</button><button class="btn btn-primary" id="je">+ ບັນທຶກ JE</button>`) +
+      view().innerHTML = UI.pageHead("ບັນຊີແຍກປະເພດ", "General Ledger", `<button class="btn btn-ghost" id="ptax">ອາກອນກຳໄລ</button><button class="btn btn-ghost" id="obimport">Opening Bal</button><button class="btn btn-ghost" id="coaimport">Import CoA</button><button class="btn btn-primary" id="quickrec">${UI.icon("zap")} Quick Record</button><button class="btn btn-ghost" id="coaexp">Export CoA</button><button class="btn btn-ghost" id="recur">Recurring</button><button class="btn btn-ghost" id="fxadj">FX Adjust</button><button class="btn btn-ghost" id="yearend">ປິດສິ້ນປີ</button><button class="btn btn-primary" id="je">+ ບັນທຶກ JE</button>`) +
         `<div class="flex gap-1 mb-4 border-b border-slate-200 flex-wrap">
           ${["coa|ຜັງບັນຊີ", "tb|Trial Balance", "journal|Journal", "pl|ກຳໄລ-ຂາດທຶນ", "bs|ໃບດຸ່ນດ່ຽງ"].map(t => { const [k, l] = t.split("|"); return `<span class="tab ${tab === k ? "active" : ""}" data-tab="${k}">${l}</span>`; }).join("")}
         </div><div id="glbody"></div>`;
@@ -611,7 +612,7 @@
     let td = 0, tc = 0; rows.forEach(r => { if (r.raw >= 0) { if (r.a.type === "Asset" || r.a.type === "Expense") td += r.raw; else tc += r.raw; } });
     const body = rows.map(r => { const isDr = (r.a.type === "Asset" || r.a.type === "Expense"); const v = Math.abs(r.raw); return `<tr><td>${E(r.a.code)}</td><td>${E(r.a.name)}</td><td class="num">${isDr ? M(v) : ""}</td><td class="num">${!isDr ? M(v) : ""}</td></tr>`; }).join("");
     return `<div class="card overflow-hidden"><table class="data"><thead><tr><th>ລະຫັດ</th><th>ບັນຊີ</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody>${body}<tr class="font-bold bg-slate-50"><td colspan=2>ລວມ</td><td class="num">${M(td)}</td><td class="num">${M(tc)}</td></tr></tbody></table></div>
-      <p class="hint mt-2">${Math.abs(td - tc) < 1 ? "✔ ສົມດຸນ (Dr = Cr)" : "⚠️ ບໍ່ສົມດຸນ!"}</p>`;
+      <p class="hint mt-2">${Math.abs(td - tc) < 1 ? UI.icon("check") + " ສົມດຸນ (Dr = Cr)" : UI.icon("alert") + " ບໍ່ສົມດຸນ!"}</p>`;
   }
   function glJournal() {
     const jes = Store.all("journal_entries").sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
@@ -637,7 +638,7 @@
     return `<div class="grid md:grid-cols-2 gap-4 max-w-3xl">
       <div class="card p-5"><h3 class="font-semibold mb-3">ຊັບສິນ (Assets)</h3>${Store.where("accounts", a => a.type === "Asset" && !a.is_header).map(a => plRow(a.name, Acc.accountBalance(a.code))).join("")}${plRow("ລວມຊັບສິນ", assets, true)}</div>
       <div class="card p-5"><h3 class="font-semibold mb-3">ໜີ້ສິນ & ທຶນ</h3>${Store.where("accounts", a => a.type === "Liability" && !a.is_header).map(a => plRow(a.name, Acc.accountBalance(a.code))).join("")}${plRow("ກຳໄລສະສົມ (ງວດນີ້)", ni)}${plRow("ລວມໜີ້ສິນ+ທຶນ", liab + totalEq, true)}</div>
-      <div class="md:col-span-2 hint">${Math.abs(assets - (liab + totalEq)) < 1 ? "✔ ສົມດຸນ: A = L + E" : "⚠️ ຄວນກວດ: A ≠ L+E (ຕ່າງ " + M(assets - liab - totalEq) + ")"}</div></div>`;
+      <div class="md:col-span-2 hint">${Math.abs(assets - (liab + totalEq)) < 1 ? UI.icon("check") + " ສົມດຸນ: A = L + E" : UI.icon("alert") + " ຄວນກວດ: A ≠ L+E (ຕ່າງ " + M(assets - liab - totalEq) + ")"}</div></div>`;
   }
   function jeForm(after) {
     const accts = Store.where("accounts", a => !a.is_header);
@@ -655,7 +656,7 @@
           <td><select class="input" data-f="account" data-i="${i}">${accts.map(a => `<option value="${a.code}" ${a.code === r.account ? "selected" : ""}>${E(a.code + " " + a.name)}</option>`).join("")}</select></td>
           <td><input class="input num" data-f="debit" data-i="${i}" type="number" value="${r.debit}"></td>
           <td><input class="input num" data-f="credit" data-i="${i}" type="number" value="${r.credit}"></td>
-          <td><button class="text-red-500" data-del="${i}">✕</button></td></tr>`).join("");
+          <td><button class="text-red-500" data-del="${i}">${UI.icon("x")}</button></td></tr>`).join("");
         body.querySelectorAll("#je-rows input,#je-rows select").forEach(el => el.onchange = () => { const i = +el.dataset.i, f = el.dataset.f; rows[i][f] = f === "account" ? el.value : (parseFloat(el.value) || 0); totals(); });
         body.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { rows.splice(+b.dataset.del, 1); renderRows(); });
         totals();
@@ -672,7 +673,7 @@
   /* ================= 09 · FIXED ASSETS ================= */
   function assets() {
     const rows = Store.all("assets");
-    view().innerHTML = UI.pageHead("ຊັບສິນຖາວອນ", "Fixed Assets", `<button class="btn btn-ghost" id="run">▶ Run ຄ່າເສື່ອມ (ເດືອນນີ້)</button><button class="btn btn-ghost" id="aimport">Import</button><button class="btn btn-ghost" id="atransfer">ໂອນຊັບ</button><button class="btn btn-ghost" id="catchdep">Catch-up ເສື່ອມ</button><button class="btn btn-ghost" id="impair">ດ້ອຍຄ່າ</button><button class="btn btn-ghost" id="dispose">ຂາຍ/ກຳຈັດ</button><button class="btn btn-ghost" id="prepaid">ຄ່າລ່ວງໜ້າ</button><button class="btn btn-ghost" id="deferred">ລາຍຮັບລ່ວງໜ້າ</button><button class="btn btn-primary" id="add">+ ລົງທະບຽນຊັບ</button>`) +
+    view().innerHTML = UI.pageHead("ຊັບສິນຖາວອນ", "Fixed Assets", `<button class="btn btn-ghost" id="run">${UI.icon("play")} Run ຄ່າເສື່ອມ (ເດືອນນີ້)</button><button class="btn btn-ghost" id="aimport">Import</button><button class="btn btn-ghost" id="atransfer">ໂອນຊັບ</button><button class="btn btn-ghost" id="catchdep">Catch-up ເສື່ອມ</button><button class="btn btn-ghost" id="impair">ດ້ອຍຄ່າ</button><button class="btn btn-ghost" id="dispose">ຂາຍ/ກຳຈັດ</button><button class="btn btn-ghost" id="prepaid">ຄ່າລ່ວງໜ້າ</button><button class="btn btn-ghost" id="deferred">ລາຍຮັບລ່ວງໜ້າ</button><button class="btn btn-primary" id="add">+ ລົງທະບຽນຊັບ</button>`) +
       UI.table([{ h: "ຊື່", key: "name" }, { h: "ໝວດ", key: "category" }, { h: "ຕົ້ນທຶນ", cls: "num", render: r => M(r.cost) }, { h: "ເສື່ອມສະສົມ", cls: "num", render: r => M(r.acc_dep) }, { h: "NBV", cls: "num", render: r => M(Number(r.cost) - Number(r.acc_dep)) }, { h: "ອາຍຸ(ເດືອນ)", key: "life_months" }, { h: "ສະຖານະ", render: r => UI.statusBadge(r.status) }], rows);
     view().querySelector("#dispose").onclick = () => disposeModal();
     view().querySelector("#impair").onclick = () => impairModal();
@@ -697,7 +698,7 @@
   function payroll() {
     const emps = Store.all("employees");
     const runs = Store.all("payroll").sort((a, b) => (b.period || "").localeCompare(a.period || ""));
-    view().innerHTML = UI.pageHead("ເງິນເດືອນ & HR", "Payroll (ກົດໝາຍລາວ)", `<button class="btn btn-ghost" id="run">▶ ຄິດເງິນເດືອນ</button><button class="btn btn-ghost" id="bankfile">Bank File</button><button class="btn btn-ghost" id="holidays">ວັນພັກ</button><button class="btn btn-ghost" id="payperiod">Pay Period</button><button class="btn btn-ghost" id="filing">Filing</button><button class="btn btn-ghost" id="pitcfg">ຕັ້ງ PIT</button><button class="btn btn-ghost" id="e-imp">Import</button><button class="btn btn-ghost" id="e-exp">Export</button><button class="btn btn-ghost" id="salrev">ປັບເງິນເດືອນ</button><button class="btn btn-ghost" id="attend">ລາພັກ</button><button class="btn btn-ghost" id="pitrec">PIT Recon</button><button class="btn btn-ghost" id="pslip">ພິມ Payslip</button><button class="btn btn-primary" id="add">+ ພະນັກງານ</button>`) +
+    view().innerHTML = UI.pageHead("ເງິນເດືອນ & HR", "Payroll (ກົດໝາຍລາວ)", `<button class="btn btn-ghost" id="run">${UI.icon("play")} ຄິດເງິນເດືອນ</button><button class="btn btn-ghost" id="bankfile">Bank File</button><button class="btn btn-ghost" id="holidays">ວັນພັກ</button><button class="btn btn-ghost" id="payperiod">Pay Period</button><button class="btn btn-ghost" id="filing">Filing</button><button class="btn btn-ghost" id="pitcfg">ຕັ້ງ PIT</button><button class="btn btn-ghost" id="e-imp">Import</button><button class="btn btn-ghost" id="e-exp">Export</button><button class="btn btn-ghost" id="salrev">ປັບເງິນເດືອນ</button><button class="btn btn-ghost" id="attend">ລາພັກ</button><button class="btn btn-ghost" id="pitrec">PIT Recon</button><button class="btn btn-ghost" id="pslip">ພິມ Payslip</button><button class="btn btn-primary" id="add">+ ພະນັກງານ</button>`) +
       `<h3 class="font-semibold mb-2">ພະນັກງານ (${emps.length})</h3>` +
       UI.table([{ h: "ຊື່", key: "name" }, { h: "ພະແນກ", key: "dept" }, { h: "ຕຳແໜ່ງ", key: "position" }, { h: "ເງິນເດືອນພື້ນຖານ", cls: "num", render: r => M(r.base_salary) }, { h: "ສະຖານະ", render: r => UI.statusBadge(r.status) }], emps) +
       `<h3 class="font-semibold mb-2 mt-6">ປະຫວັດຄິດເງິນເດືອນ</h3>` +
@@ -735,7 +736,7 @@
     UI.modal("ຄິດເງິນເດືອນ ງວດ " + period, `<table class="data"><thead><tr><th>ພະນັກງານ</th><th class="num">Gross</th><th class="num">PIT</th><th class="num">LSSO 2%</th><th class="num">ສຸດທິ</th></tr></thead><tbody>${rowsHtml}
       <tr class="font-bold bg-slate-50"><td>ລວມ</td><td class="num">${M(grossT)}</td><td class="num">${M(pitT)}</td><td class="num">${M(lssoEmpT)}</td><td class="num">${M(netT)}</td></tr></tbody></table>
       <p class="hint mt-2">LSSO ນາຍຈ້າງ 1.5% = ${M(lssoErT)} (ຄ່າໃຊ້ຈ່າຍ)</p>
-      <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" data-cancel>ຍົກເລີກ</button><button class="btn btn-primary" id="pp">✔ Post → GL</button></div>`, { wide: true, onMount: (body, close) => {
+      <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" data-cancel>ຍົກເລີກ</button><button class="btn btn-primary" id="pp">${UI.icon("check")} Post → GL</button></div>`, { wide: true, onMount: (body, close) => {
         body.querySelector("[data-cancel]").onclick = close;
         body.querySelector("#pp").onclick = () => {
           Acc.postJournal({ date: UI.today(), source_type: "PAYROLL", source_id: period, memo: "ເງິນເດືອນ " + period, lines: [
@@ -755,7 +756,7 @@
   function budget() {
     const yr = UI.today().slice(0, 4);
     const plAccts = Store.where("accounts", a => !a.is_header && (a.type === "Revenue" || a.type === "Expense"));
-    view().innerHTML = UI.pageHead("ງົບປະມານ", "Budgeting (ປີ " + yr + ")", `<button class="btn btn-ghost" id="jobcost">Job Costing</button><button class="btn btn-ghost" id="retention">Retention</button><button class="btn btn-ghost" id="bmonthly">Monthly</button><button class="btn btn-ghost" id="bforecast">Forecast</button><button class="btn btn-ghost" id="bprefill">Pre-fill</button><button class="btn btn-ghost" id="bprojbs">Project BS</button><button class="btn btn-ghost" id="balloc">Allocation</button><button class="btn btn-ghost" id="b-imp">Import</button><button class="btn btn-ghost" id="b-exp">Export</button><button class="btn btn-ghost" id="cc">Cost Centre</button><button class="btn btn-ghost" id="proj">Project</button><button class="btn btn-primary" id="edit">✎ ຕັ້ງງົບປະມານ</button>`) +
+    view().innerHTML = UI.pageHead("ງົບປະມານ", "Budgeting (ປີ " + yr + ")", `<button class="btn btn-ghost" id="jobcost">Job Costing</button><button class="btn btn-ghost" id="retention">Retention</button><button class="btn btn-ghost" id="bmonthly">Monthly</button><button class="btn btn-ghost" id="bforecast">Forecast</button><button class="btn btn-ghost" id="bprefill">Pre-fill</button><button class="btn btn-ghost" id="bprojbs">Project BS</button><button class="btn btn-ghost" id="balloc">Allocation</button><button class="btn btn-ghost" id="b-imp">Import</button><button class="btn btn-ghost" id="b-exp">Export</button><button class="btn btn-ghost" id="cc">Cost Centre</button><button class="btn btn-ghost" id="proj">Project</button><button class="btn btn-primary" id="edit">${UI.icon("edit")} ຕັ້ງງົບປະມານ</button>`) +
       UI.table([
         { h: "ບັນຊີ", render: r => E(r.code + " " + r.name) },
         { h: "ງົບປະມານ", cls: "num", render: r => M(budgetOf(r.code, yr)) },
@@ -790,13 +791,13 @@
     const audit = Store.all("audit_log").sort((a, b) => (b.ts || "").localeCompare(a.ts || "")).slice(0, 20);
     view().innerHTML = UI.pageHead("ລາຍງານ", "Reports & Governance", `<button class="btn btn-ghost" id="r-chart">ກຣາຟ 12ດ</button><button class="btn btn-ghost" id="r-cbs">BS ປຽບທຽບ</button><button class="btn btn-ghost" id="r-fasch">ຄ່າເສື່ອມ</button><button class="btn btn-ghost" id="r-vatd">VAT ລະອຽດ</button><button class="btn btn-ghost" id="r-tbcsv">TB CSV</button><button class="btn btn-ghost" id="r-ppc">Prepaid Sheet</button><button class="btn btn-ghost" id="r-lslot">Low/Lot</button><button class="btn btn-ghost" id="r-ctb">TB ປຽບທຽບ</button><button class="btn btn-ghost" id="r-rvi">ລາຍຮັບ/ສິນຄ້າ</button><button class="btn btn-ghost" id="r-exp">ຄ່າໃຊ້ຈ່າຍ/ໝວດ</button><button class="btn btn-ghost" id="r-apage">AP Aging</button><button class="btn btn-ghost" id="r-ccpl">CC P&L</button><button class="btn btn-ghost" id="r-cmp">P&L ປຽບທຽບ</button><button class="btn btn-ghost" id="r-aged">Stock Aging</button><button class="btn btn-ghost" id="r-proj">Project P&L</button><button class="btn btn-ghost" id="r-grir">GR/IR</button><button class="btn btn-ghost" id="r-pur">ຊື້</button><button class="btn btn-ghost" id="r-me">Month-end</button><button class="btn btn-ghost" id="r-fc">Cash 13w</button><button class="btn btn-ghost" id="r-rev">ວິເຄາະລາຍຮັບ</button><button class="btn btn-ghost" id="r-gl">GL</button><button class="btn btn-ghost" id="r-wc">Working Capital</button><button class="btn btn-ghost" id="r-ecl">ECL</button><button class="btn btn-ghost" id="r-fa">ຊັບສິນ</button><button class="btn btn-ghost" id="r-cf">ກະແສເງິນສົດ</button><button class="btn btn-ghost" id="r-sv">ມູນຄ່າສະຕັອກ</button><button class="btn btn-ghost" id="r-wht">WHT</button><button class="btn btn-primary" id="r-csv">Export CSV</button>`) +
       `<div class="grid md:grid-cols-3 gap-3 mb-5">
-        ${reportCard("gl", "📗 ບັນຊີແຍກປະເພດ", "Trial Balance, GL, P&L, ໃບດຸ່ນດ່ຽງ")}
-        ${reportCard("banking", "🏦 ກະແສເງິນສົດ", "ລາຍການ Payment ຮັບ/ຈ່າຍ")}
-        ${reportCard("inventory", "📦 ມູນຄ່າສະຕັອກ", "Stock valuation & Stock Card")}
+        ${reportCard("gl", UI.icon("book") + " ບັນຊີແຍກປະເພດ", "Trial Balance, GL, P&L, ໃບດຸ່ນດ່ຽງ")}
+        ${reportCard("banking", UI.icon("landmark") + " ກະແສເງິນສົດ", "ລາຍການ Payment ຮັບ/ຈ່າຍ")}
+        ${reportCard("inventory", UI.icon("package") + " ມູນຄ່າສະຕັອກ", "Stock valuation & Stock Card")}
       </div>
-      <div class="card p-5 mb-5 max-w-lg"><h3 class="font-semibold mb-3">🧾 VAT Return (ຍືນ DRD)</h3>
+      <div class="card p-5 mb-5 max-w-lg"><h3 class="font-semibold mb-3 flex items-center gap-2">${UI.icon("receipt")} VAT Return (ຍືນ DRD)</h3>
         <div class="space-y-1 text-sm">${plRow("Output VAT (ຂາຍ)", vatOut)}${plRow("Input VAT (ຊື້)", -vatIn)}${plRow("VAT ຕ້ອງຍືນ", vatOut - vatIn, true)}</div></div>
-      <div class="card p-5"><h3 class="font-semibold mb-3">🛡️ Audit Log (ລ່າສຸດ)</h3>
+      <div class="card p-5"><h3 class="font-semibold mb-3 flex items-center gap-2">${UI.icon("shield")} Audit Log (ລ່າສຸດ)</h3>
         <table class="data"><thead><tr><th>ເວລາ</th><th>ຜູ້ໃຊ້</th><th>ການກະທຳ</th><th>ລາຍລະອຽດ</th></tr></thead><tbody>
         ${audit.map(a => `<tr><td>${E((a.ts || "").slice(0, 16).replace("T", " "))}</td><td>${E(a.user)}</td><td>${E(a.action)} · ${E(a.entity)}</td><td>${E(a.detail)}</td></tr>`).join("") || '<tr><td colspan=4 class="text-center text-slate-400 py-4">ຍັງບໍ່ມີ</td></tr>'}
         </tbody></table></div>`;
@@ -826,7 +827,7 @@
           <table class="data"><thead><tr><th>ຊື່</th><th class="num">ອັດຕາ%</th><th>ປະເພດ</th></tr></thead><tbody>
           ${taxes.map(t => `<tr><td>${E(t.name)}</td><td class="num">${t.rate}</td><td>${E(t.type)}</td></tr>`).join("")}</tbody></table>
           <h3 class="font-semibold mt-5 mb-2">ການເຊື່ອມຕໍ່ຂໍ້ມູນ</h3>
-          <div class="text-sm mb-3">${Store.mode === "cloud" ? '<span class="badge green">☁ Cloud · Google Sheet</span>' : '<span class="badge amber">💾 Demo Mode · ເກັບໃນ browser</span>'}</div>
+          <div class="text-sm mb-3">${Store.mode === "cloud" ? '<span class="badge green">' + UI.icon("cloud") + ' Cloud · Google Sheet</span>' : '<span class="badge amber">' + UI.icon("database") + ' Demo Mode · ເກັບໃນ browser</span>'}</div>
           ${Store.mode === "demo" ? '<p class="hint mb-3">ເປີດ config.js ໃສ່ URL Apps Script ເພື່ອເກັບໃນ Google Sheet (ເບິ່ງ README.md)</p><button class="btn btn-danger" id="s-reset">ລ້າງຂໍ້ມູນ Demo</button>' : ""}
         </div>
       </div>`;
@@ -847,11 +848,11 @@
       const q = inp.value.trim().toLowerCase();
       if (!q) { box.classList.add("hidden"); return; }
       const hits = [];
-      Store.all("customers").forEach(c => c.name.toLowerCase().includes(q) && hits.push(["👥 ລູກຄ້າ", c.name, "#/customers"]));
-      Store.all("vendors").forEach(v => v.name.toLowerCase().includes(q) && hits.push(["🏭 ຜູ້ສະໜອງ", v.name, "#/vendors"]));
-      Store.all("items").forEach(i => (i.name.toLowerCase().includes(q) || (i.sku || "").toLowerCase().includes(q)) && hits.push(["📦 ສິນຄ້າ", i.name, "#/inventory"]));
-      Store.all("invoices").forEach(i => (i.number || "").toLowerCase().includes(q) && hits.push(["🧾 Invoice", i.number, "#/invoices"]));
-      Store.all("bills").forEach(b => (b.number || "").toLowerCase().includes(q) && hits.push(["📥 Bill", b.number, "#/bills"]));
+      Store.all("customers").forEach(c => c.name.toLowerCase().includes(q) && hits.push([UI.icon("users") + " ລູກຄ້າ", c.name, "#/customers"]));
+      Store.all("vendors").forEach(v => v.name.toLowerCase().includes(q) && hits.push([UI.icon("truck") + " ຜູ້ສະໜອງ", v.name, "#/vendors"]));
+      Store.all("items").forEach(i => (i.name.toLowerCase().includes(q) || (i.sku || "").toLowerCase().includes(q)) && hits.push([UI.icon("package") + " ສິນຄ້າ", i.name, "#/inventory"]));
+      Store.all("invoices").forEach(i => (i.number || "").toLowerCase().includes(q) && hits.push([UI.icon("receipt") + " Invoice", i.number, "#/invoices"]));
+      Store.all("bills").forEach(b => (b.number || "").toLowerCase().includes(q) && hits.push([UI.icon("inbox") + " Bill", b.number, "#/bills"]));
       box.innerHTML = hits.length ? hits.slice(0, 12).map(([t, n, h]) => `<a href="${h}" class="block px-3 py-2 hover:bg-slate-50 text-sm border-b border-slate-100"><span class="text-slate-400">${t}</span> · ${E(n)}</a>`).join("") : '<div class="px-3 py-3 text-sm text-slate-400">ບໍ່ພົບ</div>';
       box.classList.remove("hidden");
     };
@@ -884,7 +885,7 @@
     UI.modal("Credit Note ຈາກ " + inv.number, `<p class="hint mb-2">ໃສ່ຈຳນວນທີ່ຄືນຕໍ່ແຖວ</p>
       <table class="data"><thead><tr><th>ລາຍການ</th><th class="num">ຂາຍ</th><th class="num">ຄືນ</th></tr></thead><tbody>${rowsHtml}</tbody></table>
       <label class="flex items-center gap-2 mt-3"><input type="checkbox" id="cn-stock" checked> ຄືນສິນຄ້າເຂົ້າ stock</label>
-      <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" data-cancel>ຍົກເລີກ</button><button class="btn btn-primary" id="cn-post">✔ ສ້າງ & Post CN</button></div>`,
+      <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" data-cancel>ຍົກເລີກ</button><button class="btn btn-primary" id="cn-post">${UI.icon("check")} ສ້າງ & Post CN</button></div>`,
       { wide: true, onMount: (body, close) => {
         body.querySelector("[data-cancel]").onclick = close;
         body.querySelector("#cn-post").onclick = () => {
@@ -1726,7 +1727,7 @@
     const roles = Object.keys(ROLE_PERMS);
     const mods = [["dashboard", "Dashboard"], ["customers", "ຂາຍ"], ["invoices", "Invoice"], ["vendors", "ຊື້"], ["bills", "Bill"], ["inventory", "ສິນຄ້າ"], ["banking", "ທະນາຄານ"], ["gl", "GL"], ["assets", "ຊັບສິນ"], ["payroll", "ເງິນເດືອນ"], ["budget", "ງົບປະມານ"], ["reports", "ລາຍງານ"], ["settings", "ຕັ້ງຄ່າ"]];
     const head = `<th>ໂມດູນ</th>` + roles.map(r => `<th style="font-size:10px">${r}</th>`).join("");
-    const rows = mods.map(([route, label]) => `<tr><td>${label}</td>` + roles.map(r => { const p = ROLE_PERMS[r]; const ok = !p || p.indexOf(route) !== -1; return `<td class="num" style="color:${ok ? "#15803d" : "#cbd5e1"}">${ok ? "✓" : "·"}</td>`; }).join("") + `</tr>`).join("");
+    const rows = mods.map(([route, label]) => `<tr><td>${label}</td>` + roles.map(r => { const p = ROLE_PERMS[r]; const ok = !p || p.indexOf(route) !== -1; return `<td class="num" style="color:${ok ? "#15803d" : "#cbd5e1"}">${ok ? UI.icon("check", 14) : "·"}</td>`; }).join("") + `</tr>`).join("");
     UI.modal("Permissions Matrix (11 ບົດບາດ)", `<div class="overflow-x-auto"><table class="data"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`, { wide: true });
   }
 
@@ -1832,7 +1833,7 @@
   }
   function bomLinesModal(bomId) {
     const bom = Store.get("boms", bomId); const it = Store.get("items", bom.item_id) || {}; const lines = Store.where("bom_lines", l => l.bom_id === bomId); const items = Store.all("items");
-    const body = lines.map(l => { const ci = Store.get("items", l.item_id) || {}; return `<tr><td>${E(ci.name)}</td><td class="num">${l.qty}</td><td><button class="text-red-500" data-del="${l.id}">✕</button></td></tr>`; }).join("");
+    const body = lines.map(l => { const ci = Store.get("items", l.item_id) || {}; return `<tr><td>${E(ci.name)}</td><td class="num">${l.qty}</td><td><button class="text-red-500" data-del="${l.id}">${UI.icon("x")}</button></td></tr>`; }).join("");
     UI.modal("ອົງປະກອບຂອງ " + it.name, `<div class="flex gap-2 mb-3"><select class="input" id="bl-item">${items.map(i => `<option value="${i.id}">${E(i.name)}</option>`).join("")}</select><input class="input" id="bl-qty" type="number" value="1" style="width:120px"><button class="btn btn-primary" id="bl-add">ເພີ່ມ</button></div><table class="data"><thead><tr><th>ອົງປະກອບ</th><th class="num">ຈຳນວນ</th><th></th></tr></thead><tbody>${body || '<tr><td colspan=3 class="text-slate-400 py-2">ຍັງບໍ່ມີ</td></tr>'}</tbody></table><p class="hint mt-2">ຕົ້ນທຶນສູດ: ${M(Acc.computeBomCost(bomId))}</p>`,
       { wide: true, onMount: (bd, close) => {
         bd.querySelector("#bl-add").onclick = () => { const iid = bd.querySelector("#bl-item").value; const q = parseFloat(bd.querySelector("#bl-qty").value) || 0; if (q <= 0) return; Store.insert("bom_lines", { bom_id: bomId, item_id: iid, qty: q }); close(); bomLinesModal(bomId); };
@@ -1885,7 +1886,7 @@
   function getIndustry() { const c = Store.get("settings", "company") || {}; return c.industry || "general"; }
   function industryCard() {
     const ind = getIndustry(); const tools = INDUSTRY_TOOLS[ind] || INDUSTRY_TOOLS.general;
-    return `<div class="card p-5 mb-5"><h3 class="font-semibold mb-3">⚡ ເຄື່ອງມືສຳລັບທຸລະກິດ: ${E(INDUSTRY_NAMES[ind] || ind)}</h3><div class="flex flex-wrap gap-2">${tools.map(t => `<button class="btn btn-ghost" data-tool="${t[1]}">${E(t[0])}</button>`).join("")}</div></div>`;
+    return `<div class="card p-5 mb-5"><h3 class="font-semibold mb-3 flex items-center gap-2">${UI.icon("zap")} ເຄື່ອງມືສຳລັບທຸລະກິດ: ${E(INDUSTRY_NAMES[ind] || ind)}</h3><div class="flex flex-wrap gap-2">${tools.map(t => `<button class="btn btn-ghost" data-tool="${t[1]}">${E(t[0])}</button>`).join("")}</div></div>`;
   }
 
 
@@ -2009,7 +2010,7 @@
     }
     const txOpts = POSTING_TX2.map((t, i) => `<option value="${i}">${E(t.label)}</option>`).join("");
     UI.modal("ກົດການລົງບັນຊີ (Posting Rules)", `<div class="mb-3"><label class="field">ເລືອກລາຍການ (Transaction)</label><select class="input" id="pr-tx">${txOpts}</select></div>
-      <div class="flex flex-wrap gap-2 mb-3"><button class="btn btn-ghost btn-sm" id="pr-auto">🔎 ຕັ້ງອັດຕະໂນມັດ</button><button class="btn btn-ghost btn-sm" id="pr-exp">Export Excel</button><button class="btn btn-ghost btn-sm" id="pr-imp">Import Excel</button></div>
+      <div class="flex flex-wrap gap-2 mb-3"><button class="btn btn-ghost btn-sm" id="pr-auto">${UI.icon("search")} ຕັ້ງອັດຕະໂນມັດ</button><button class="btn btn-ghost btn-sm" id="pr-exp">Export Excel</button><button class="btn btn-ghost btn-sm" id="pr-imp">Import Excel</button></div>
       <div id="pr-body" class="card p-4" style="background:#f8fafb"></div>
       <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" data-cancel>ຍົກເລີກ</button><button class="btn btn-primary" id="pr-save">ບັນທຶກ</button></div>`,
       { wide: true, onMount: (bd, close) => {

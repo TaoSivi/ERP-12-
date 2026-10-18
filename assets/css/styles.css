@@ -127,3 +127,15 @@ label.field{display:block;font-size:12.5px;font-weight:600;color:#475569;margin-
   .tbl-wrap table.data td[colspan] { display:block; text-align:center; }
   .tbl-wrap table.data td[colspan]::before { display:none; }
 }
+
+/* ---------- Line icons ---------- */
+.ic { flex:none; vertical-align:-.2em; }
+.nav-item .ic { color:#94a3b8; }
+.nav-item:hover .ic { color:#475569; }
+.nav-item.active .ic { color:#0a9d99; }
+.bn-item { flex-direction:column; gap:3px; font-size:11.5px; }
+.nav-item { gap:12px; }
+.card, .kpi { border-radius:14px; box-shadow:0 1px 2px rgba(15,23,42,.04); }
+.card h3 .ic, h3 .ic { color:#0a9d99; }
+.btn .ic { margin-right:2px; }
+header .ic { display:block; }
