@@ -71,13 +71,106 @@
     CLR: { label: "ເຄລຍເງິນສຳຮອງ", prefix: "CLR", icon: "🧾" },
     PAY: { label: "ຂໍເບີກຈ່າຍ", prefix: "PAY", icon: "💸" }
   };
+  /* =================== voucher definitions (generic request types) ===================
+     A new request type is one entry here: label, voucher kind, required documents, form fields
+     and a journal() that returns the Dr/Cr lines. Approval chain comes from the approval matrix
+     (by_type override or amount tiers); when the last approver signs, the journal is posted.
+       kind   PV payment · RV receipt · JV journal · GL cash/bank movement
+       docs   evidence that must be ticked (with a reference) before the request can be submitted
+       fields [{k, label, type: "cashbank"|"expense"|"number"|"text"}] */
+  const cashBankAccounts = () => {
+    const gl = new Set(Store.all("bank_accounts").map(b => String(b.gl_account)));
+    return Store.where("accounts", a => !a.is_header && a.type === "Asset" && (gl.has(a.code) || /^10/.test(a.code) || /ເງິນສົດ|ເງິນຝາກ|ທະນາຄານ|cash|bank/i.test(a.name)));
+  };
+  const VDEFS = {
+    TRF: {
+      label: "ໂອນເງິນ (ສົດ ↔ ທະນາຄານ)", icon: "🔁", kind: "GL",
+      docs: [{ key: "slip", label: "ໃບໂອນ / ໃບຝາກ-ຖອນ ຈາກທະນາຄານ" }],
+      fields: [{ k: "from", label: "ຈາກບັນຊີ *", type: "cashbank" }, { k: "to", label: "ເຂົ້າບັນຊີ *", type: "cashbank" }, { k: "amount", label: "ຈຳນວນເງິນ *", type: "number" }],
+      book: "ອະນຸມັດຄົບ: Dr ບັນຊີປາຍທາງ · Cr ບັນຊີຕົ້ນທາງ",
+      check(d) {
+        if (!Acc.acc(d.from) || !Acc.acc(d.to)) throw new Error("ເລືອກບັນຊີຕົ້ນທາງ ແລະ ປາຍທາງ");
+        if (d.from === d.to) throw new Error("ບັນຊີຕົ້ນທາງ ແລະ ປາຍທາງຕ້ອງຕ່າງກັນ");
+      },
+      payee: d => Acc.accName(d.from) + " → " + Acc.accName(d.to),
+      journal: (r, f) => [{ account: f.to, debit: r.amount, credit: 0, memo: r.purpose }, { account: f.from, debit: 0, credit: r.amount, memo: r.purpose }]
+    },
+    FEE: {
+      label: "ຄ່າທຳນຽມ / ດອກເບ້ຍທະນາຄານ", icon: "🏦", kind: "PV",
+      docs: [{ key: "stmt", label: "Statement / ໃບແຈ້ງຄ່າທຳນຽມ ຈາກທະນາຄານ" }],
+      fields: [{ k: "bank", label: "ບັນຊີທະນາຄານ *", type: "cashbank" }, { k: "expense", label: "ໝວດຄ່າໃຊ້ຈ່າຍ *", type: "expense" }, { k: "amount", label: "ຈຳນວນເງິນ *", type: "number" }],
+      book: "ອະນຸມັດຄົບ: Dr ຄ່າທຳນຽມ/ດອກເບ້ຍ · Cr ບັນຊີທະນາຄານ",
+      check(d) {
+        const a = Acc.acc(d.expense);
+        if (!Acc.acc(d.bank)) throw new Error("ເລືອກບັນຊີທະນາຄານ");
+        if (!a || a.type !== "Expense") throw new Error("ເລືອກໝວດຄ່າໃຊ້ຈ່າຍ");
+      },
+      payee: d => Acc.accName(d.bank),
+      journal: (r, f) => [{ account: f.expense, debit: r.amount, credit: 0, memo: r.purpose }, { account: f.bank, debit: 0, credit: r.amount, memo: r.purpose }]
+    }
+  };
+  Object.keys(VDEFS).forEach(k => { TYPES[k] = { label: VDEFS[k].label, prefix: VDEFS[k].kind, icon: VDEFS[k].icon, generic: true }; });
+
+  // evidence the audit plan asks for on the existing types — enforced only when Settings turns it on
+  const LEGACY_DOCS = {
+    ADV: [{ key: "form", label: "ໃບສະເໜີຂໍເງິນແຮ (ມີລາຍເຊັນ)" }, { key: "id", label: "ສຳເນົາບັດ ID ຜູ້ຮັບ" }],
+    CLR: [{ key: "summary", label: "ໃບສະຫຼຸບເງິນແຮ (ມີລາຍເຊັນ)" }, { key: "receipts", label: "ໃບເສຍຄ່າ / ໃບບິນ ຕົວຈິງ" }],
+    PAY: [{ key: "invoice", label: "ໃບບິນ / ໃບແຈ້ງໜີ້" }]
+  };
+  const docDefsFor = type => VDEFS[type] ? VDEFS[type].docs : (settings().require_docs ? (LEGACY_DOCS[type] || []) : []);
+  // [{key,label,ok,ref}] for a request (or for a type, before it exists)
+  function docsOf(r) {
+    const have = r.docs || {};
+    return docDefsFor(r.type).map(d => ({ key: d.key, label: d.label, ok: !!(have[d.key] && have[d.key].ok), ref: (have[d.key] && have[d.key].ref) || "" }));
+  }
+  const missingDocs = r => docsOf(r).filter(d => !d.ok || !String(d.ref).trim());
+  function checkDocs(r) {
+    const m = missingDocs(r);
+    if (m.length) throw new Error("ເອກະສານແນບຍັງບໍ່ຄົບ: " + m.map(d => d.label).join(", "));
+  }
+  // d = { key: { ok, ref } }; allowed while the request is still being prepared or approved
+  function setDocs(id, d, role) {
+    const r = getReq(id);
+    if (r.stage !== "draft" && r.stage !== "approval") throw new Error("ແກ້ເອກະສານແນບບໍ່ໄດ້ແລ້ວ");
+    const ok = docDefsFor(r.type).map(x => x.key), next = Object.assign({}, r.docs || {});
+    Object.keys(d || {}).forEach(k => { if (ok.indexOf(k) !== -1) next[k] = { ok: !!d[k].ok, ref: String(d[k].ref || "").trim(), by: role, at: new Date().toISOString() }; });
+    log(r, "docs", role, docsOf(Object.assign({}, r, { docs: next })).filter(x => x.ok).map(x => x.label).join(", "));
+    return set(r, { docs: next });
+  }
+
+  function createV(type, data, role) {
+    const def = VDEFS[type], date = data.date || today(), amount = round(data.amount);
+    if (!(amount > 0)) throw new Error("ໃສ່ຈຳນວນເງິນ");
+    const f = {}; def.fields.forEach(x => { if (x.type !== "number") f[x.k] = String(data[x.k] || ""); });
+    def.check(f);
+    const ccy = "LAK";
+    const r = Store.insert("requests", { type, generic: true, number: Acc.nextVoucher(def.kind, "requests", date, ccy), date, purpose: data.purpose, dept: data.dept || "",
+      payee: def.payee(f), amount, ccy, fields: f, docs: {}, requester_role: role, stage: "draft", approvals_done: [], created_at: new Date().toISOString() });
+    log(r, "create", role);
+    if (data.docs) setDocs(r.id, data.docs, role);
+    return Store.get("requests", r.id);
+  }
+  // [[label, value]] for the detail page
+  function summary(r) {
+    const def = VDEFS[r.type]; if (!def) return [];
+    const out = def.fields.filter(x => x.type !== "number").map(x => [x.label.replace(" *", ""), Acc.accName(r.fields && r.fields[x.k])]);
+    out.push(["ສະກຸນ", r.ccy || "LAK"]); return out;
+  }
+  function postV(r, date) {
+    const def = VDEFS[r.type];
+    Acc.assertOpen(date);
+    const je = Acc.postJournal({ date, source_type: "REQUEST", source_id: r.id, memo: r.number + " " + r.purpose, lines: def.journal(r, r.fields || {}) });
+    log(r, "post", "auto", je.number || "");
+    return set(r, { stage: "closed", je_id: je.id, posted_at: new Date().toISOString() });
+  }
+
   const STAGE_LABEL = { draft: "ຮ່າງ", approval: "ລໍອະນຸມັດ", payout: "ລໍຈ່າຍເງິນ", open: "ລໍເຄລຍ", refund: "ລໍຮັບເງິນຄືນ", closed: "ສຳເລັດ", rejected: "ຖືກປະຕິເສດ", cancelled: "ຍົກເລີກ" };
   const ENDED = { closed: 1, rejected: 1, cancelled: 1 };
   const PAYER_ROLES = ["Cashier", "Accountant", "Manager", "Admin"];
 
   function settings() {
     const s = Store.get("settings", "flows") || {};
-    return { clear_days: Number(s.clear_days) || 15, split_days: Number(s.split_days) || 3 };
+    return { clear_days: Number(s.clear_days) || 15, split_days: Number(s.split_days) || 3, require_docs: !!s.require_docs };
   }
   const getReq = id => { const r = Store.get("requests", id); if (!r) throw new Error("ບໍ່ພົບຄຳຂໍ"); return r; };
   const linesOf = id => Store.where("request_lines", l => l.request_id === id);
@@ -89,7 +182,7 @@
   // gross line amounts (what is on the receipt); VAT 10% is inside when vat = true
   function splitVat(l) { const g = round(l.amount), net = l.vat ? round(g / 1.1) : g; return { gross: g, net, vat: round(g - net) }; }
   function totalOf(id) { return round(linesOf(id).reduce((s, l) => s + Number(l.amount || 0), 0)); }
-  const amountOf = r => (r.type === "ADV" ? Number(r.amount) : totalOf(r.id));
+  const amountOf = r => (r.type === "ADV" || r.generic ? Number(r.amount) : totalOf(r.id));
 
   /* ---------- advances bookkeeping ---------- */
   function openAdvances(person) {
@@ -107,6 +200,7 @@
     if (!TYPES[type]) throw new Error("ປະເພດບໍ່ຖືກ");
     data = data || {};
     if (!String(data.purpose || "").trim()) throw new Error("ໃສ່ຈຸດປະສົງ");
+    if (VDEFS[type]) return createV(type, data, role);
     const date = data.date || today();
     const base = { type, number: Acc.nextNumber(TYPES[type].prefix, "requests", date), date, purpose: data.purpose, dept: data.dept || "",
       requester_role: role, stage: "draft", approvals_done: [], created_at: new Date().toISOString() };
@@ -146,6 +240,7 @@
   function submit(id, role) {
     const r = getReq(id);
     if (r.stage !== "draft") throw new Error("ສົ່ງແລ້ວ");
+    checkDocs(r);
     const chain = chainFor(r.type, amountOf(r));
     log(r, "submit", role);
     return set(r, { stage: "approval", chain, approvals_done: [], submitted_at: new Date().toISOString() });
@@ -165,6 +260,7 @@
     if (r.stage !== "approval") throw new Error("ບໍ່ໄດ້ຢູ່ຂັ້ນອະນຸມັດ");
     const c = canAct(r, role); if (!c.ok) throw new Error(c.why);
     const done = (r.approvals_done || []).concat([{ role, at: new Date().toISOString() }]);
+    if (done.length >= (r.chain || []).length) { checkDocs(r); if (r.generic) Acc.assertOpen(date || today()); } // nothing is written if the evidence or the period is not OK
     log(r, "approve", role, note);
     const r2 = set(r, { approvals_done: done });
     if (done.length < r2.chain.length) return r2;           // more approvers to go
@@ -186,6 +282,7 @@
   }
 
   function onFullyApproved(r, role, date) {
+    if (r.generic) return postV(r, date);
     if (r.type === "ADV") return set(r, { stage: "payout" });
     Acc.assertOpen(date);
     const lines = linesOf(r.id);
@@ -286,6 +383,6 @@
   function nextAction(r, role) { const c = canAct(r, role); return { label: NEXT[r.stage] || "", allowed: c.ok, why: c.why }; }
 
   window.Approval = { DEFAULT_TIERS, matrix, setMatrix, chainFor, chainState, canApproveStep };
-  window.Flows = { TYPES, STAGE_LABEL, ENDED, settings, create, submit, approve, reject, cancel, pay, receiveRefund, canAct, nextAction, queue,
+  window.Flows = { VDEFS, cashBankAccounts, docsOf, docDefsFor, missingDocs, setDocs, summary, TYPES, STAGE_LABEL, ENDED, settings, create, submit, approve, reject, cancel, pay, receiveRefund, canAct, nextAction, queue,
     linesOf, history, totalOf, amountOf, splitVat, openAdvances, overdueAdvances, advanceOutstanding, warnings };
 })();

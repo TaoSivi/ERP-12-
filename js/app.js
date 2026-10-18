@@ -669,7 +669,7 @@
   function gl() {
     let tab = "coa";
     function render() {
-      view().innerHTML = UI.pageHead("ບັນຊີແຍກປະເພດ", "General Ledger", `<button class="btn btn-ghost" id="ptax">ອາກອນກຳໄລ</button><button class="btn btn-ghost" id="obimport">Opening Bal</button><button class="btn btn-ghost" id="coaimport">Import CoA</button><button class="btn btn-primary" id="quickrec">⚡ Quick Record</button><button class="btn btn-ghost" id="coaexp">Export CoA</button><button class="btn btn-ghost" id="recur">Recurring</button><button class="btn btn-ghost" id="fxadj">FX Adjust</button><button class="btn btn-ghost" id="yearend">ປິດສິ້ນປີ</button><button class="btn btn-primary" id="je">+ ບັນທຶກ JE</button>`) +
+      view().innerHTML = UI.pageHead("ບັນຊີແຍກປະເພດ", "General Ledger", `<button class="btn btn-ghost" id="ptax">ອາກອນກຳໄລ</button><button class="btn btn-ghost" id="obimport">Opening Bal</button><button class="btn btn-ghost" id="coalt">ນຳເຂົ້າຜັງບັນຊີ ລາວໃຕ້ (LT)</button><button class="btn btn-ghost" id="coaimport">Import CoA</button><button class="btn btn-primary" id="quickrec">⚡ Quick Record</button><button class="btn btn-ghost" id="coaexp">Export CoA</button><button class="btn btn-ghost" id="recur">Recurring</button><button class="btn btn-ghost" id="fxadj">FX Adjust</button><button class="btn btn-ghost" id="yearend">ປິດສິ້ນປີ</button><button class="btn btn-primary" id="je">+ ບັນທຶກ JE</button>`) +
         `<div class="flex gap-1 mb-4 border-b border-slate-200 flex-wrap">
           ${["coa|ຜັງບັນຊີ", "tb|Trial Balance", "journal|Journal", "pl|ກຳໄລ-ຂາດທຶນ", "bs|ໃບດຸ່ນດ່ຽງ"].map(t => { const [k, l] = t.split("|"); return `<span class="tab ${tab === k ? "active" : ""}" data-tab="${k}">${l}</span>`; }).join("")}
         </div><div id="glbody"></div>`;
@@ -683,6 +683,7 @@
       view().querySelector("#obimport").onclick = () => importOpeningBalanceModal();
       view().querySelector("#ptax").onclick = () => profitTaxModal();
       view().querySelector("#coaimport").onclick = () => importCoaCSV();
+      view().querySelector("#coalt").onclick = () => importCoaLT();
       const b = view().querySelector("#glbody");
       if (tab === "coa") b.innerHTML = glCoA();
       else if (tab === "tb") b.innerHTML = glTB();
@@ -902,7 +903,8 @@
         <div class="card p-5"><h3 class="font-semibold mb-3">ໂປຣໄຟລ໌ບໍລິສັດ</h3>
           <div class="space-y-3">
             <div><label class="field">ຊື່ບໍລິສັດ</label><input class="input" id="s-name" value="${E(c.name || "")}"></div>
-            <div><label class="field">TIN</label><input class="input" id="s-tin" value="${E(c.tin || "")}"></div>
+            <div class="grid grid-cols-2 gap-3"><div><label class="field">TIN</label><input class="input" id="s-tin" value="${E(c.tin || "")}"></div>
+              <div><label class="field">ລະຫັດນິຕິບຸກຄົນ (ໃນເລກ Voucher)</label><input class="input" id="s-ent" maxlength="8" placeholder="ເຊັ່ນ LT" value="${E(c.entity_code || "")}"></div></div>
             <div><label class="field">ທີ່ຢູ່ (ຂຶ້ນໃນໃບ Invoice)</label><input class="input" id="s-addr" value="${E(c.address || "")}"></div>
             <div class="grid grid-cols-2 gap-3"><div><label class="field">ເບີໂທ</label><input class="input" id="s-phone" value="${E(c.phone || "")}"></div><div><label class="field">ວົງເງິນຕ້ອງອະນຸມັດ (0 = ປິດ)</label><input class="input" id="s-aplimit" type="text" inputmode="numeric" data-num value="${E((c.approval_limit || 0).toLocaleString("en-US"))}"></div></div>
             <div><label class="field">ຂໍ້ມູນ QR ຮັບເງິນ (ເລກບັນຊີ/LaoQR string — ຂຶ້ນເປັນ QR ໃນໃບ Invoice)</label><input class="input" id="s-qr" value="${E(c.qr_payload || "")}" placeholder="ເຊັ່ນ: BCEL 010-12-00-xxxxxxx-001 ${E(c.name || "")}"></div>
@@ -935,7 +937,7 @@
     view().querySelector("#guardlog").onclick = guardLogModal;
     view().querySelector("#autopost").onclick = autopostModal;
     view().querySelector("#s-save").onclick = () => {
-      const upd = { name: view().querySelector("#s-name").value, tin: view().querySelector("#s-tin").value, lock_date: view().querySelector("#s-lock").value, show_advanced: view().querySelector("#s-adv").checked,
+      const upd = { name: view().querySelector("#s-name").value, tin: view().querySelector("#s-tin").value, lock_date: view().querySelector("#s-lock").value, entity_code: view().querySelector("#s-ent").value.trim().toUpperCase(), show_advanced: view().querySelector("#s-adv").checked,
         address: view().querySelector("#s-addr").value, phone: view().querySelector("#s-phone").value, approval_limit: numVal(view().querySelector("#s-aplimit").value), qr_payload: view().querySelector("#s-qr").value };
       if (_newLogo) upd.logo = _newLogo; else if (c.logo) upd.logo = c.logo;
       Store.update("settings", "company", upd);
@@ -1944,6 +1946,17 @@
   function importOpeningBalanceModal() {
     UI.modal("ນຳເຂົ້າຍອດຍົກມາ (account,debit,credit)", `<textarea class="input" id="ob-csv" rows="6" placeholder="1200,5000000,0"></textarea><div class="flex justify-end gap-2 mt-3"><button class="btn btn-ghost" data-cancel>ຍົກເລີກ</button><button class="btn btn-primary" id="ob-go">Post JE</button></div>`,
       { onMount: (bd, close) => { bd.querySelector("[data-cancel]").onclick = close; bd.querySelector("#ob-go").onclick = () => { const lines = []; bd.querySelector("#ob-csv").value.trim().split("\n").forEach(ln => { const c = parseCSVLine(ln); if (c[0] && c[0].toLowerCase() !== "account") lines.push({ account: c[0], debit: parseFloat(c[1]) || 0, credit: parseFloat(c[2]) || 0, memo: "Opening" }); }); try { Acc.postJournal({ date: UI.today(), source_type: "OPENING_IMPORT", source_id: "", memo: "ຍອດຍົກມາ (import)", lines }); close(); UI.toast("Post ຍອດຍົກມາສຳເລັດ", "ok"); gl(); } catch (e) { UI.toast(e.message, "err"); } }; } });
+  }
+  // Lao Tai chart of accounts (554 accounts from TB-LT). Adds only codes that do not exist yet; nothing is deleted or renamed.
+  function importCoaLT() {
+    if (!canAdmin()) return UI.toast("ສະເພາະ Admin", "warn");
+    const rows = window.COA_LT || [], fresh = rows.filter(r => !Store.where("accounts", a => a.code === r[0]).length);
+    if (!fresh.length) return UI.toast("ມີຜັງບັນຊີ LT ຄົບແລ້ວ", "info");
+    UI.confirmDialog("ເພີ່ມ " + fresh.length + " ບັນຊີຈາກ TB-LT (ມີຢູ່ແລ້ວ " + (rows.length - fresh.length) + " ຂ້າມ). ບໍ່ລຶບ ຫຼື ປ່ຽນບັນຊີເດີມ. ຫຼັງນຳເຂົ້າ ໃຫ້ໄປ ຕັ້ງຄ່າ → Posting ເພື່ອຜູກບົດບາດ (AR, AP, VAT...) ກັບບັນຊີຂອງ LT.", () => {
+      fresh.forEach(([code, name, type]) => Store.insert("accounts", { id: "acc_" + code, code, name, type, is_header: 0, is_active: 1 }));
+      Acc.audit("create", "accounts", "COA_LT", fresh.length + " accounts");
+      UI.toast("ນຳເຂົ້າ " + fresh.length + " ບັນຊີແລ້ວ", "ok"); gl();
+    });
   }
   function importCoaCSV() { csvImportModal("ນຳເຂົ້າ Chart of Accounts", "code,name,type", cols => { const code = cols[0]; if (Store.where("accounts", a => a.code === code).length) return; Store.insert("accounts", { id: "acc_" + code, code, name: cols[1] || code, type: cols[2] || "Expense", is_header: 0, is_active: 1 }); }, gl); }
 

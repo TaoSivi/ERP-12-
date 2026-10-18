@@ -11,7 +11,7 @@
   const params = () => new URLSearchParams(location.hash.split("?")[1] || "");
   const open = id => { location.hash = id ? "#/requests?id=" + id : "#/requests"; };
   const ROLES = ["Manager", "Accountant", "Admin", "Purchasing", "HR", "Cashier"];
-  const DID = { create: "ສ້າງ", submit: "ສົ່ງຂໍອະນຸມັດ", approve: "ອະນຸມັດ", reject: "ປະຕິເສດ", cancel: "ຍົກເລີກ", post: "ລົງບັນຊີອັດຕະໂນມັດ", pay: "ຈ່າຍເງິນ", refund: "ຮັບເງິນຄືນ" };
+  const DID = { docs: "ແນບເອກະສານ", create: "ສ້າງ", submit: "ສົ່ງຂໍອະນຸມັດ", approve: "ອະນຸມັດ", reject: "ປະຕິເສດ", cancel: "ຍົກເລີກ", post: "ລົງບັນຊີອັດຕະໂນມັດ", pay: "ຈ່າຍເງິນ", refund: "ຮັບເງິນຄືນ" };
   const STEPS = {
     ADV: [["draft", "ຂໍ"], ["approval", "ອະນຸມັດ"], ["payout", "ຈ່າຍເງິນ"], ["open", "ລໍເຄລຍ"], ["closed", "ເຄລຍແລ້ວ"]],
     CLR: [["draft", "ຍື່ນໃບບິນ"], ["approval", "ອະນຸມັດ"], ["settle", "ຄືນ / ຈ່າຍເພີ່ມ"], ["closed", "ສຳເລັດ"]],
@@ -22,6 +22,8 @@
     CLR: ["ອະນຸມັດ: Dr ຄ່າໃຊ້ຈ່າຍ + VAT · Cr ເງິນສຳຮອງພະນັກງານ", "ໃຊ້ບໍ່ໝົດ: Dr ເງິນສົດ · Cr ເງິນສຳຮອງ", "ໃຊ້ເກີນ: Dr ຄ້າງຈ່າຍພະນັກງານ · Cr ເງິນສົດ"],
     PAY: ["ອະນຸມັດ (ຜູ້ສະໜອງ): ສ້າງ Bill — Dr ຄ່າໃຊ້ຈ່າຍ + VAT · Cr ເຈົ້າໜີ້", "ອະນຸມັດ (ພະນັກງານ): Dr ຄ່າໃຊ້ຈ່າຍ + VAT · Cr ຄ້າງຈ່າຍພະນັກງານ", "ຈ່າຍເງິນ: Dr ເຈົ້າໜີ້/ຄ້າງຈ່າຍ · Cr ທະນາຄານ"]
   };
+  // generic (voucher) types share one simple 3-step path
+  Object.keys(Flows.VDEFS).forEach(k => { STEPS[k] = [["draft", "ຂໍ"], ["approval", "ອະນຸມັດ & ລົງບັນຊີ"], ["closed", "ສຳເລັດ"]]; BOOK[k] = [Flows.VDEFS[k].book]; });
   let filter = "mine";
 
   function act(fn, ok) { try { fn(); if (ok) UI.toast(ok, "ok"); render(); } catch (e) { UI.toast(e.message, "err"); } }
@@ -104,7 +106,7 @@
             <td>${lines.length > 1 ? `<button class="text-red-500" data-del="${i}">✕</button>` : ""}</td></tr>`).join("")}
           </tbody></table></div><div class="flex justify-between items-center mt-2"><button class="btn btn-ghost btn-sm" id="rq-add">＋ ເພີ່ມລາຍການ</button><div>ລວມ: <b id="rq-total"></b></div></div>
           <p class="hint mt-1">ໃສ່ຍອດເງິນຕາມໃບບິນ. ໝາຍ VAT ຖ້າໃບບິນມີ VAT 10% ລວມຢູ່ — ລະບົບແຍກ VAT ຊື້ໃຫ້ເອງ.</p>`;
-        const total = () => type === "ADV" ? Number((q("#rq-amt") || {}).value) || 0 : lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+        const total = () => type === "ADV" || Flows.VDEFS[type] ? Number((q("#rq-amt") || {}).value) || 0 : lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
         function refreshChain() {
           const t = total();
           if (q("#rq-total")) q("#rq-total").textContent = M(t);
@@ -124,8 +126,18 @@
           if (type === "CLR") f += `<div class="sm:col-span-2"><label class="field">ເງິນສຳຮອງທີ່ຈະເຄລຍ *</label><select class="input" id="rq-adv">${openAdv.length ? openAdv.map(a => `<option value="${a.id}">${E(a.number)} · ${E(a.payee)} · ${M(a.amount)} · ກຳນົດ ${E(a.due_clear)}</option>`).join("") : '<option value="">— ບໍ່ມີເງິນສຳຮອງຄ້າງເຄລຍ —</option>'}</select></div></div>` + linesTable();
           if (type === "PAY") f += `<div><label class="field">ຈ່າຍໃຫ້</label><select class="input" id="rq-ptype"><option value="vendor">ຜູ້ສະໜອງ (ມີບິນ)</option><option value="employee">ພະນັກງານ (ເບີກຄືນ)</option></select></div>
             <div id="rq-pwrap"><label class="field">ຜູ້ສະໜອງ *</label><select class="input" id="rq-vendor">${vends.map(v => `<option value="${v.id}">${E(v.name)}</option>`).join("")}</select></div></div>` + linesTable();
+          if (Flows.VDEFS[type]) f += genericFields(type);
           q("#rq-form").innerHTML = f;
           bindForm(); refreshChain();
+        }
+        // fields + document checklist of a generic type
+        function genericFields(t) {
+          const def = Flows.VDEFS[t], cb = Flows.cashBankAccounts(), ex = expAccounts();
+          const opts = list => list.map(a => `<option value="${E(a.code)}">${E(a.code + " " + a.name)}</option>`).join("");
+          // continues the grid opened with the purpose field in draw()
+          return def.fields.map(x => `<div><label class="field">${E(x.label)}</label>${
+            x.type === "number" ? `<input class="input num" type="number" id="rq-amt" min="0">` : `<select class="input" data-gf="${x.k}">${opts(x.type === "expense" ? ex : cb)}</select>`}</div>`).join("") +
+            `<div class="sm:col-span-2">${docsPanel(def.docs.map(d => ({ key: d.key, label: d.label, ok: false, ref: "" })), true)}</div></div>`;
         }
         function bindForm() {
           bd.querySelectorAll("#rq-form [data-k]").forEach(el => el.onchange = el.oninput = () => {
@@ -150,16 +162,39 @@
             let data;
             if (type === "ADV") data = { purpose, payee: q("#rq-payee").value, amount: Number(q("#rq-amt").value) };
             if (type === "CLR") data = { purpose, advance_id: q("#rq-adv").value, lines };
+            if (Flows.VDEFS[type]) {
+              data = { purpose, amount: Number(q("#rq-amt").value), docs: readDocs(bd) };
+              bd.querySelectorAll("[data-gf]").forEach(el => { data[el.dataset.gf] = el.value; });
+            }
             if (type === "PAY") data = q("#rq-ptype").value === "vendor" ? { purpose, payee_type: "vendor", vendor_id: (q("#rq-vendor") || {}).value, lines } : { purpose, payee_type: "employee", payee: (q("#rq-payee") || {}).value, lines };
             const r = Flows.create(type, data, role());
-            if (submitToo) Flows.submit(r.id, role());
-            close(); UI.toast((submitToo ? "ສົ່ງ " : "ບັນທຶກຮ່າງ ") + r.number, "ok"); open(r.id);
+            close();
+            // the draft exists now; if submitting fails (e.g. documents missing) keep it and open it so the checklist is right there
+            let sent = false;
+            if (submitToo) { try { Flows.submit(r.id, role()); sent = true; } catch (e) { UI.toast("ບັນທຶກຮ່າງ " + r.number + " ແລ້ວ — " + e.message, "warn"); } }
+            if (sent || !submitToo) UI.toast((sent ? "ສົ່ງ " : "ບັນທຶກຮ່າງ ") + r.number, "ok");
+            open(r.id);
           } catch (e) { UI.toast(e.message, "err"); }
         };
         q("#rq-draft").onclick = () => save(false);
         q("#rq-submit").onclick = () => save(true);
         draw();
       } });
+  }
+
+  /* =================== required documents =================== */
+  // checklist: tick the evidence you hold and write where it is (voucher no., file name, link)
+  function docsPanel(docs, editable) {
+    if (!docs.length) return "";
+    return `<div class="mt-4" data-docs><div class="section-title">ເອກະສານແນບ <span class="count ${docs.every(d => d.ok && d.ref) ? "" : "zero"}">${docs.filter(d => d.ok && d.ref).length}/${docs.length}</span></div>
+      <div class="space-y-2">${docs.map(d => `<div class="flex flex-wrap items-center gap-2"><label class="flex items-center gap-2 text-sm" style="min-width:260px"><input type="checkbox" data-dk="${E(d.key)}" ${d.ok ? "checked" : ""} ${editable ? "" : "disabled"}> ${E(d.label)}</label>
+        <input class="input flex-1" style="min-width:160px" data-dr="${E(d.key)}" placeholder="ເລກທີ / ຊື່ໄຟລ໌ / ລິ້ງ" value="${E(d.ref)}" ${editable ? "" : "disabled"}></div>`).join("")}</div>
+      <p class="hint mt-1">ຕ້ອງຕິກ ແລະ ໃສ່ຂໍ້ມູນອ້າງອີງ ຈຶ່ງຈະສົ່ງຂໍອະນຸມັດໄດ້</p></div>`;
+  }
+  function readDocs(root) {
+    const out = {};
+    root.querySelectorAll("[data-dk]").forEach(c => { out[c.dataset.dk] = { ok: c.checked, ref: (root.querySelector(`[data-dr="${c.dataset.dk}"]`) || {}).value || "" }; });
+    return out;
   }
 
   /* =================== DETAIL =================== */
@@ -177,6 +212,8 @@
       <div class="grid lg:grid-cols-3 gap-4">
         <div class="lg:col-span-2 space-y-4 min-w-0">
           <div>${nextBox(r, n, adv)}</div>
+          ${r.generic ? `<div class="card p-5"><div class="section-title">ລາຍລະອຽດ</div><div class="space-y-1 text-sm">${Flows.summary(r).map(s => `<div class="flex justify-between gap-3"><span class="text-slate-500">${E(s[0])}</span><b class="text-right">${E(s[1])}</b></div>`).join("")}</div></div>` : ""}
+          ${Flows.docsOf(r).length ? `<div class="card p-5" id="docs-card">${docsPanel(Flows.docsOf(r), r.stage === "draft" || r.stage === "approval")}${r.stage === "draft" || r.stage === "approval" ? `<button class="btn btn-ghost btn-sm mt-3" id="docs-save">ບັນທຶກເອກະສານແນບ</button>` : ""}</div>` : ""}
           ${lines.length ? `<div class="card p-5"><div class="section-title">ລາຍການ</div><div class="overflow-x-auto"><table class="data"><thead><tr><th>ໝວດ</th><th>ລາຍລະອຽດ</th><th>ເລກທີ່ບິນ</th><th class="num">ຍອດ</th><th class="num">VAT</th></tr></thead><tbody>
             ${lines.map(l => { const v = Flows.splitVat(l); return `<tr><td>${E(Acc.accName(l.account))}</td><td>${E(l.description)}</td><td>${E(l.receipt_no)}</td><td class="num">${M(v.gross)}</td><td class="num">${v.vat ? M(v.vat) : "-"}</td></tr>`; }).join("")}
           </tbody></table></div></div>` : ""}
@@ -224,6 +261,7 @@
     on("#nx-pay", () => act(() => Flows.pay(r.id, me, { bank_id: q("#nx-bank").value, date: q("#nx-date").value }), "ຈ່າຍເງິນ & ລົງບັນຊີແລ້ວ"));
     on("#nx-refund", () => act(() => Flows.receiveRefund(r.id, me, { bank_id: q("#nx-bank").value, date: q("#nx-date").value }), "ຮັບເງິນຄືນ & ລົງບັນຊີແລ້ວ"));
     on("#nx-clr", () => newRequest("CLR"));
+    on("#docs-save", () => act(() => Flows.setDocs(r.id, readDocs(view().querySelector("#docs-card")), me), "ບັນທຶກເອກະສານແນບແລ້ວ"));
   }
 
   /* =================== Approval matrix editor (Settings) =================== */
@@ -234,6 +272,7 @@
     UI.modal("✍️ ຂັ້ນອະນຸມັດຕາມວົງເງິນ", `<p class="hint mb-3">ໃຊ້ກັບ ຂໍຊື້, ເບີກເງິນສຳຮອງ, ເຄລຍ, ຂໍເບີກຈ່າຍ. ຜູ້ຂໍອະນຸມັດເອງບໍ່ໄດ້ ແລະ ແຕ່ລະບົດບາດອະນຸມັດໄດ້ຂັ້ນດຽວ.</p>
       <div id="mx-rows"></div>
       ${can ? `<button class="btn btn-ghost btn-sm mt-2" id="mx-add">＋ ເພີ່ມຂັ້ນວົງເງິນ</button>` : ""}
+      <label class="flex items-center gap-2 text-sm mt-4"><input type="checkbox" id="mx-docs" ${fs.require_docs ? "checked" : ""} ${can ? "" : "disabled"}> ບັງຄັບເອກະສານແນບກ່ອນສົ່ງ (ເງິນສຳຮອງ / ເຄລຍ / ຂໍເບີກຈ່າຍ) — ປະເພດໃໝ່ (ໂອນເງິນ, ຄ່າທຳນຽມ) ບັງຄັບສະເໝີ</label>
       <div class="grid sm:grid-cols-2 gap-3 mt-4"><div><label class="field">ເງິນສຳຮອງຕ້ອງເຄລຍພາຍໃນ (ວັນ)</label><input class="input num" type="number" id="mx-clear" value="${fs.clear_days}" ${can ? "" : "disabled"}></div></div>
       <div class="flex justify-end gap-2 mt-4">${can ? `<button class="btn btn-primary" id="mx-save">ບັນທຶກ</button>` : '<span class="hint">ສະເພາະ Admin ແກ້ໄຂໄດ້</span>'}</div>`, { wide: true, onMount: (bd, close) => {
         const q = s => bd.querySelector(s);
@@ -254,7 +293,8 @@
             tiers.forEach(t => { t.chain = t.chain.filter(Boolean); if (new Set(t.chain).size !== t.chain.length) throw new Error("ບົດບາດຊ້ຳກັນໃນຂັ້ນດຽວ"); });
             Approval.setMatrix(tiers);
             const cd = Number(q("#mx-clear").value) || 15;
-            if (Store.get("settings", "flows")) Store.update("settings", "flows", { clear_days: cd }); else Store.insert("settings", { id: "flows", clear_days: cd });
+            const rd = q("#mx-docs").checked;
+            if (Store.get("settings", "flows")) Store.update("settings", "flows", { clear_days: cd, require_docs: rd }); else Store.insert("settings", { id: "flows", clear_days: cd, require_docs: rd });
             close(); UI.toast("ບັນທຶກຂັ້ນອະນຸມັດແລ້ວ (ໃຊ້ກັບຄຳຂໍໃໝ່)", "ok");
           } catch (e) { UI.toast(e.message, "err"); }
         };

@@ -24,6 +24,23 @@
     return prefix + "-" + yr + "-" + String(max + 1).padStart(4, "0");
   }
 
+  /* ---------- Voucher numbers: KIND-ENTITY-CCY-MONYY-SEQ (e.g. PV-LT-LAK-DEC25-040) ----------
+     KIND  PV payment · RV receipt · JV journal · GL cash/bank movement
+     ENTITY comes from Settings (entity_code). SEQ restarts every month per kind+entity+currency. */
+  const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  function entityCode() { const c = Store.get("settings", "company") || {}; return String(c.entity_code || "MAIN").trim().toUpperCase() || "MAIN"; }
+  function nextVoucher(kind, collection, dateStr, ccy) {
+    const d = dateStr || new Date().toISOString().slice(0, 10);
+    const prefix = kind + "-" + entityCode() + "-" + String(ccy || "LAK").toUpperCase() + "-" + MON[Number(d.slice(5, 7)) - 1] + d.slice(2, 4) + "-";
+    let max = 0;
+    Store.all(collection).forEach(r => {
+      if (!String(r.number || "").startsWith(prefix)) return;
+      const n = parseInt(String(r.number).slice(prefix.length), 10);
+      if (!isNaN(n) && n > max) max = n;
+    });
+    return prefix + String(max + 1).padStart(3, "0");
+  }
+
   /* ---------- Tax ---------- */
   function taxRate(taxCodeId) {
     const t = Store.get("taxcodes", taxCodeId);
@@ -644,7 +661,7 @@
     depreciateCatchUp, projectPL,
     voidInvoice, voidBill, voidPayment, voidGRN,
     releaseRetention, computeBomCost, buildProduct, profitTaxProvision, whtEntry,
-    PA, POSTING_DEFAULTS
+    PA, POSTING_DEFAULTS, nextVoucher, entityCode
   };
 })();
 
