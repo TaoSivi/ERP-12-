@@ -242,18 +242,14 @@
         <div><a class="hint" href="#/requests">← ກັບໄປລາຍການຄຳຂໍ</a>
           <h1 class="page-title mt-1">${E(r.number)} · ${E(r.purpose)}</h1>
           <p class="page-sub">${typeTag(r)} · ${E(r.payee || "")} · <b>${M(Flows.amountOf(r))}</b> · ${E(UI.fmtDate(r.date))}${adv ? ` · ເຄລຍ <a class="text-brand-700" href="#/requests?id=${adv.id}">${E(adv.number)}</a>` : ""}</p></div>
-        <div class="flex gap-2 items-center"><span class="role-pill">👤 ${E(role())}</span>${chip(r)}</div>
+        <div class="flex gap-2 items-center"><button class="btn btn-ghost" id="doc-print">🖨 ພິມເອກະສານ</button><span class="role-pill">👤 ${E(role())}</span>${chip(r)}</div>
       </div>
       <div class="card p-4 mb-4">${stepper(r)}</div>
       <div class="grid lg:grid-cols-3 gap-4">
         <div class="lg:col-span-2 space-y-4 min-w-0">
           <div>${nextBox(r, n, adv)}</div>
-          ${r.generic ? `<div class="card p-5"><div class="section-title">ລາຍລະອຽດ</div><div class="space-y-1 text-sm">${Flows.summary(r).map(s => `<div class="flex justify-between gap-3"><span class="text-slate-500">${E(s[0])}</span><b class="text-right">${E(s[1])}</b></div>`).join("")}</div></div>` : ""}
-          ${r.vlines ? `<div class="card p-5"><div class="section-title">ລາຍການ</div><div class="overflow-x-auto"><table class="data"><thead><tr><th>ບັນຊີ</th><th>ລາຍລະອຽດ</th>${r.ccy !== "LAK" ? `<th class="num">${E(r.ccy)}</th>` : ""}<th class="num">ກີບ</th></tr></thead><tbody>${r.vlines.map(l => `<tr><td>${E(Acc.accName(l.account))}</td><td>${E(l.memo)}</td>${r.ccy !== "LAK" ? `<td class="num">${Number(l.orig).toLocaleString("en-US")}</td>` : ""}<td class="num">${M(l.amount)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}
+          <div class="card p-5 overflow-x-auto" id="req-doc">${ReqDoc.html(r)}</div>
           ${Flows.docsOf(r).length ? `<div class="card p-5" id="docs-card">${docsPanel(Flows.docsOf(r), r.stage === "draft" || r.stage === "approval")}${r.stage === "draft" || r.stage === "approval" ? `<button class="btn btn-ghost btn-sm mt-3" id="docs-save">ບັນທຶກເອກະສານແນບ</button>` : ""}</div>` : ""}
-          ${lines.length ? `<div class="card p-5"><div class="section-title">ລາຍການ</div><div class="overflow-x-auto"><table class="data"><thead><tr><th>ໝວດ</th><th>ລາຍລະອຽດ</th><th>ເລກທີ່ບິນ</th><th class="num">ຍອດ</th><th class="num">VAT</th></tr></thead><tbody>
-            ${lines.map(l => { const v = Flows.splitVat(l); return `<tr><td>${E(Acc.accName(l.account))}</td><td>${E(l.description)}</td><td>${E(l.receipt_no)}</td><td class="num">${M(v.gross)}</td><td class="num">${v.vat ? M(v.vat) : "-"}</td></tr>`; }).join("")}
-          </tbody></table></div></div>` : ""}
         </div>
         <div class="space-y-4 min-w-0">
           <div class="card p-5"><div class="section-title">ປະຫວັດ</div><ul class="timeline">${Flows.history(id).map(h => `<li><b>${E(DID[h.action] || h.action)}</b> · ${E(h.role)}${h.note ? `<div class="text-slate-600">${E(h.note)}</div>` : ""}<div class="t-when">${E(h.ts.slice(0, 16).replace("T", " "))}</div></li>`).join("")}</ul></div>
@@ -298,6 +294,7 @@
     on("#nx-pay", () => act(() => Flows.pay(r.id, me, { bank_id: q("#nx-bank").value, date: q("#nx-date").value }), "ຈ່າຍເງິນ & ລົງບັນຊີແລ້ວ"));
     on("#nx-refund", () => act(() => Flows.receiveRefund(r.id, me, { bank_id: q("#nx-bank").value, date: q("#nx-date").value }), "ຮັບເງິນຄືນ & ລົງບັນຊີແລ້ວ"));
     on("#nx-clr", () => newRequest("CLR"));
+    on("#doc-print", () => ReqDoc.print(r));
     on("#docs-save", () => act(() => Flows.setDocs(r.id, readDocs(view().querySelector("#docs-card")), me), "ບັນທຶກເອກະສານແນບແລ້ວ"));
   }
 

@@ -3784,7 +3784,7 @@
 
   async function init() {
     document.addEventListener("click", e => document.querySelectorAll("details.more-menu[open]").forEach(d => { if (!d.contains(e.target) || e.target.closest(".more-pop .btn")) d.removeAttribute("open"); }));
-    window.AppCtx = { currentRole, canApprove, guardedPost, poPrint, canDo };
+    window.AppCtx = { currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
     installGates(); buildNav(); setupSearch();
     document.getElementById("menuBtn").onclick = () => document.getElementById("sidebar").classList.toggle("-translate-x-full");
     document.getElementById("view").addEventListener("click", e => { const b = e.target.closest("[data-tool]"); if (b && TOOLS[b.dataset.tool]) TOOLS[b.dataset.tool](); });
