@@ -24,14 +24,15 @@
     return prefix + "-" + yr + "-" + String(max + 1).padStart(4, "0");
   }
 
-  /* ---------- Voucher numbers: KIND-ENTITY-CCY-MONYY-SEQ (e.g. PV-LT-LAK-DEC25-040) ----------
-     KIND  PV payment · RV receipt · JV journal · GL cash/bank movement
-     ENTITY comes from Settings (entity_code). SEQ restarts every month per kind+entity+currency. */
+  /* ---------- Voucher numbers: KIND-ENTITY-MONYY-SEQ (e.g. PV-LT-JAN26-004) ----------
+     KIND  PV payment · RV receipt · JV journal · ADJ adjustment
+     ENTITY comes from Settings (entity_code). SEQ restarts every month per kind + entity.
+     The currency is a field of the voucher, not part of its number (as in the 2026 books). */
   const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
   function entityCode() { const c = Store.get("settings", "company") || {}; return String(c.entity_code || "MAIN").trim().toUpperCase() || "MAIN"; }
-  function nextVoucher(kind, collection, dateStr, ccy) {
+  function nextVoucher(kind, collection, dateStr) {
     const d = dateStr || new Date().toISOString().slice(0, 10);
-    const prefix = kind + "-" + entityCode() + "-" + String(ccy || "LAK").toUpperCase() + "-" + MON[Number(d.slice(5, 7)) - 1] + d.slice(2, 4) + "-";
+    const prefix = kind + "-" + entityCode() + "-" + MON[Number(d.slice(5, 7)) - 1] + d.slice(2, 4) + "-";
     let max = 0;
     Store.all(collection).forEach(r => {
       if (!String(r.number || "").startsWith(prefix)) return;

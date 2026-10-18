@@ -87,7 +87,7 @@
 
   /* =================== NEW REQUEST =================== */
   function newRequest(preset) {
-    let type = preset || "PAY", lines = [{ account: "5200", description: "", amount: 0, vat: false, receipt_no: "" }];
+    let type = preset || "PAY", vl = [{ account: "", memo: "", orig: 0 }], lines = [{ account: "5200", description: "", amount: 0, vat: false, receipt_no: "" }];
     const emps = Store.all("employees").map(e => e.name);
     const vends = Store.all("vendors");
     UI.modal("ຄຳຂໍໃໝ່", `
@@ -106,7 +106,12 @@
             <td>${lines.length > 1 ? `<button class="text-red-500" data-del="${i}">✕</button>` : ""}</td></tr>`).join("")}
           </tbody></table></div><div class="flex justify-between items-center mt-2"><button class="btn btn-ghost btn-sm" id="rq-add">＋ ເພີ່ມລາຍການ</button><div>ລວມ: <b id="rq-total"></b></div></div>
           <p class="hint mt-1">ໃສ່ຍອດເງິນຕາມໃບບິນ. ໝາຍ VAT ຖ້າໃບບິນມີ VAT 10% ລວມຢູ່ — ລະບົບແຍກ VAT ຊື້ໃຫ້ເອງ.</p>`;
-        const total = () => type === "ADV" || Flows.VDEFS[type] ? Number((q("#rq-amt") || {}).value) || 0 : lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+        const gRate = () => q("#rq-ccy") && q("#rq-ccy").value !== "LAK" ? Number(q("#rq-rate").value) || 0 : 1;
+        const total = () => {
+          const def = Flows.VDEFS[type];
+          if (def) return def.lines ? Acc.round(vl.reduce((s, l) => s + (Number(l.orig) || 0), 0) * gRate()) : Number((q("#rq-amt") || {}).value) || 0;
+          return type === "ADV" ? Number((q("#rq-amt") || {}).value) || 0 : lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+        };
         function refreshChain() {
           const t = total();
           if (q("#rq-total")) q("#rq-total").textContent = M(t);
@@ -128,16 +133,44 @@
             <div id="rq-pwrap"><label class="field">ຜູ້ສະໜອງ *</label><select class="input" id="rq-vendor">${vends.map(v => `<option value="${v.id}">${E(v.name)}</option>`).join("")}</select></div></div>` + linesTable();
           if (Flows.VDEFS[type]) f += genericFields(type);
           q("#rq-form").innerHTML = f;
-          bindForm(); refreshChain();
+          bindForm(); bindGeneric(); refreshChain();
         }
-        // fields + document checklist of a generic type
+        // fields, currency + rate, project, lines and document checklist of a generic type.
+        // Continues the grid opened with the purpose field in draw().
         function genericFields(t) {
           const def = Flows.VDEFS[t], cb = Flows.cashBankAccounts(), ex = expAccounts();
-          const opts = list => list.map(a => `<option value="${E(a.code)}">${E(a.code + " " + a.name)}</option>`).join("");
-          // continues the grid opened with the purpose field in draw()
-          return def.fields.map(x => `<div><label class="field">${E(x.label)}</label>${
-            x.type === "number" ? `<input class="input num" type="number" id="rq-amt" min="0">` : `<select class="input" data-gf="${x.k}">${opts(x.type === "expense" ? ex : cb)}</select>`}</div>`).join("") +
+          const opt = list => list.map(a => `<option value="${E(a.code)}">${E(a.code + " " + a.name)}</option>`).join("");
+          const field = x => `<div><label class="field">${E(x.label)}</label>${
+            x.type === "number" ? `<input class="input num" type="number" min="0" ${x.k === "amount" ? 'id="rq-amt"' : `data-gn="${x.k}"`}>`
+              : x.type === "select" ? `<select class="input" data-gf="${x.k}">${x.options.map(o => `<option value="${o[0]}">${E(o[1])}</option>`).join("")}</select>`
+                : `<select class="input" data-gf="${x.k}">${opt(x.type === "expense" ? ex : cb)}</select>`}</div>`;
+          const fx = def.fx ? `<div><label class="field">ສະກຸນເງິນ</label><select class="input" id="rq-ccy">${Flows.CCYS.map(c => `<option>${c}</option>`).join("")}</select></div>
+            <div><label class="field">ອັດຕາແລກປ່ຽນ (ເປັນກີບ)</label><input class="input num" type="number" min="0" id="rq-rate" value="1" disabled></div>` : "";
+          const proj = def.project ? `<div><label class="field">ໂຄງການ (ທາງເລືອກ)</label><select class="input" id="rq-proj"><option value="">— ບໍ່ລະບຸ —</option>${Store.all("projects").map(p => `<option value="${E(p.id)}">${E(p.name)}</option>`).join("")}</select></div>` : "";
+          const ls = def.lines ? `<div class="sm:col-span-2"><datalist id="rq-vacc">${def.lines.accounts().map(a => `<option value="${E(a.code + " " + a.name)}">`).join("")}</datalist>
+            <div class="section-title">${E(def.lines.label)}</div><div id="rq-vl"></div>
+            <div class="flex justify-between items-center mt-2"><button class="btn btn-ghost btn-sm" type="button" id="rq-vadd">＋ ເພີ່ມລາຍການ</button><div>ລວມ: <b id="rq-total"></b></div></div></div>` : "";
+          return def.fields.map(field).join("") + fx + proj + ls +
             `<div class="sm:col-span-2">${docsPanel(def.docs.map(d => ({ key: d.key, label: d.label, ok: false, ref: "" })), true)}</div></div>`;
+        }
+        function drawVL() {
+          const box = q("#rq-vl"); if (!box) return;
+          box.innerHTML = vl.map((l, i) => `<div class="grid gap-2 mb-2" style="grid-template-columns:minmax(0,2fr) minmax(0,2fr) minmax(0,1fr) auto">
+            <input class="input" list="rq-vacc" placeholder="ພິມເລກ ຫຼື ຊື່ບັນຊີ" data-vi="${i}" data-vk="account" value="${E(l.account)}">
+            <input class="input" placeholder="ລາຍລະອຽດ" data-vi="${i}" data-vk="memo" value="${E(l.memo)}">
+            <input class="input num" type="number" min="0" placeholder="ຍອດ" data-vi="${i}" data-vk="orig" value="${l.orig || ""}">
+            ${vl.length > 1 ? `<button type="button" class="text-red-500" data-vdel="${i}">✕</button>` : "<span></span>"}</div>`).join("");
+          box.querySelectorAll("[data-vi]").forEach(el => el.oninput = () => { vl[+el.dataset.vi][el.dataset.vk] = el.dataset.vk === "orig" ? Number(el.value) || 0 : el.value; refreshChain(); });
+          box.querySelectorAll("[data-vdel]").forEach(b => b.onclick = () => { vl.splice(+b.dataset.vdel, 1); drawVL(); refreshChain(); });
+        }
+        function bindGeneric() {
+          const def = Flows.VDEFS[type]; if (!def) return;
+          const ccy = q("#rq-ccy"), rate = q("#rq-rate");
+          if (ccy) ccy.onchange = () => { rate.value = ccy.value === "LAK" ? 1 : (Flows.lastRate(ccy.value) || ""); rate.disabled = ccy.value === "LAK"; refreshChain(); };
+          if (rate) rate.oninput = refreshChain;
+          bd.querySelectorAll("#rq-form [data-gn]").forEach(el => el.oninput = refreshChain);
+          if (q("#rq-amt")) q("#rq-amt").oninput = refreshChain;
+          if (def.lines) { drawVL(); q("#rq-vadd").onclick = () => { vl.push({ account: "", memo: "", orig: 0 }); drawVL(); }; }
         }
         function bindForm() {
           bd.querySelectorAll("#rq-form [data-k]").forEach(el => el.onchange = el.oninput = () => {
@@ -163,8 +196,10 @@
             if (type === "ADV") data = { purpose, payee: q("#rq-payee").value, amount: Number(q("#rq-amt").value) };
             if (type === "CLR") data = { purpose, advance_id: q("#rq-adv").value, lines };
             if (Flows.VDEFS[type]) {
-              data = { purpose, amount: Number(q("#rq-amt").value), docs: readDocs(bd) };
+              data = { purpose, docs: readDocs(bd), ccy: (q("#rq-ccy") || {}).value, rate: (q("#rq-rate") || {}).value, project_id: (q("#rq-proj") || {}).value,
+                amount: Number((q("#rq-amt") || {}).value) || 0, lines: vl.map(l => ({ account: String(l.account || "").trim().split(/\s+/)[0], memo: l.memo, orig: l.orig })) };
               bd.querySelectorAll("[data-gf]").forEach(el => { data[el.dataset.gf] = el.value; });
+              bd.querySelectorAll("[data-gn]").forEach(el => { data[el.dataset.gn] = Number(el.value) || 0; });
             }
             if (type === "PAY") data = q("#rq-ptype").value === "vendor" ? { purpose, payee_type: "vendor", vendor_id: (q("#rq-vendor") || {}).value, lines } : { purpose, payee_type: "employee", payee: (q("#rq-payee") || {}).value, lines };
             const r = Flows.create(type, data, role());
@@ -213,6 +248,7 @@
         <div class="lg:col-span-2 space-y-4 min-w-0">
           <div>${nextBox(r, n, adv)}</div>
           ${r.generic ? `<div class="card p-5"><div class="section-title">ລາຍລະອຽດ</div><div class="space-y-1 text-sm">${Flows.summary(r).map(s => `<div class="flex justify-between gap-3"><span class="text-slate-500">${E(s[0])}</span><b class="text-right">${E(s[1])}</b></div>`).join("")}</div></div>` : ""}
+          ${r.vlines ? `<div class="card p-5"><div class="section-title">ລາຍການ</div><div class="overflow-x-auto"><table class="data"><thead><tr><th>ບັນຊີ</th><th>ລາຍລະອຽດ</th>${r.ccy !== "LAK" ? `<th class="num">${E(r.ccy)}</th>` : ""}<th class="num">ກີບ</th></tr></thead><tbody>${r.vlines.map(l => `<tr><td>${E(Acc.accName(l.account))}</td><td>${E(l.memo)}</td>${r.ccy !== "LAK" ? `<td class="num">${Number(l.orig).toLocaleString("en-US")}</td>` : ""}<td class="num">${M(l.amount)}</td></tr>`).join("")}</tbody></table></div></div>` : ""}
           ${Flows.docsOf(r).length ? `<div class="card p-5" id="docs-card">${docsPanel(Flows.docsOf(r), r.stage === "draft" || r.stage === "approval")}${r.stage === "draft" || r.stage === "approval" ? `<button class="btn btn-ghost btn-sm mt-3" id="docs-save">ບັນທຶກເອກະສານແນບ</button>` : ""}</div>` : ""}
           ${lines.length ? `<div class="card p-5"><div class="section-title">ລາຍການ</div><div class="overflow-x-auto"><table class="data"><thead><tr><th>ໝວດ</th><th>ລາຍລະອຽດ</th><th>ເລກທີ່ບິນ</th><th class="num">ຍອດ</th><th class="num">VAT</th></tr></thead><tbody>
             ${lines.map(l => { const v = Flows.splitVat(l); return `<tr><td>${E(Acc.accName(l.account))}</td><td>${E(l.description)}</td><td>${E(l.receipt_no)}</td><td class="num">${M(v.gross)}</td><td class="num">${v.vat ? M(v.vat) : "-"}</td></tr>`; }).join("")}

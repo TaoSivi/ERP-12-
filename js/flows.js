@@ -82,9 +82,78 @@
     const gl = new Set(Store.all("bank_accounts").map(b => String(b.gl_account)));
     return Store.where("accounts", a => !a.is_header && a.type === "Asset" && (gl.has(a.code) || /^10/.test(a.code) || /ເງິນສົດ|ເງິນຝາກ|ທະນາຄານ|cash|bank/i.test(a.name)));
   };
+  const isCashBank = a => cashBankAccounts().some(x => x.code === a.code);
+  const CCYS = ["LAK", "USD", "THB", "EUR", "CNY"];
+  // latest stored rate for a currency (Settings → fx rates); 0 when none
+  function lastRate(ccy) {
+    const x = Store.where("fx_rates", r => r.currency === ccy && Number(r.rate) > 0).sort((a, b) => (b.date || "").localeCompare(a.date || ""))[0];
+    return x ? Number(x.rate) : 0;
+  }
+  const nonCash = () => Store.where("accounts", a => !a.is_header && !isCashBank(a));
+  const lineMemo = (r, l) => (l.memo || r.purpose) + (r.ccy && r.ccy !== "LAK" ? " " + r.ccy + " " + l.orig + " @" + r.rate : "");
+  // "pay out" voucher: Dr every line, Cr the paying bank/cash with the total
+  const payJournal = (r, f) => (r.vlines || []).map(l => ({ account: l.account, debit: l.amount, credit: 0, memo: lineMemo(r, l) }))
+    .concat([{ account: f.bank, debit: 0, credit: r.amount, memo: r.purpose }]);
+  const payDef = (over) => Object.assign({
+    fx: true, project: true, fields: [{ k: "bank", label: "ຈ່າຍຈາກບັນຊີ *", type: "cashbank" }],
+    lines: { label: "ລາຍການ (Dr)", accounts: nonCash },
+    payee: (f, r) => Acc.accName(f.bank) + " · " + (r.vlines || []).length + " ລາຍການ",
+    journal: payJournal
+  }, over);
   const VDEFS = {
+    EXP: payDef({
+      label: "ຈ່າຍຄ່າໃຊ້ຈ່າຍ (PV)", icon: "💸", kind: "PV",
+      docs: [{ key: "bill", label: "ໃບບິນ / ໃບເສຍຄ່າ" }, { key: "pv", label: "ໃບສະເໜີຂໍຈ່າຍ (ມີລາຍເຊັນ)" }],
+      book: "ອະນຸມັດຄົບ: Dr ແຕ່ລະໝວດ · Cr ບັນຊີທະນາຄານ/ເງິນສົດ (ຈ່າຍທັນທີ ບໍ່ຜ່ານເຈົ້າໜີ້)"
+    }),
+    PRJ: payDef({
+      label: "ຈ່າຍຕົ້ນທຶນໂຄງການ (CIP)", icon: "🏗", kind: "PV",
+      docs: [{ key: "bill", label: "ໃບບິນ / ໃບເສຍຄ່າ" }, { key: "pv", label: "ໃບສະເໜີຂໍຈ່າຍ / ໃບອະນຸມັດໂຄງການ" }],
+      lines: { label: "ລາຍການ (Dr ຕົ້ນທຶນໂຄງການ)", accounts: () => { const p = nonCash().filter(a => /^13(32|41)/.test(a.code)); return p.length ? p : nonCash().filter(a => a.type === "Expense" || a.type === "Asset"); } },
+      book: "ອະນຸມັດຄົບ: Dr ບັນຊີໂຄງການ (1332/1341) · Cr ບັນຊີທະນາຄານ/ເງິນສົດ"
+    }),
+    LSE: payDef({
+      label: "ຈ່າຍງວດສິນເຊື່ອ / ເຊົ່າ", icon: "🧾", kind: "PV",
+      docs: [{ key: "notice", label: "ໃບແຈ້ງງວດ / ສັນຍາ" }, { key: "slip", label: "ໃບໂອນເງິນ" }],
+      lines: { label: "ລາຍການ (Dr ຕົ້ນ / ດອກເບ້ຍ)", accounts: () => nonCash().filter(a => a.type === "Liability" || a.type === "Expense") },
+      book: "ອະນຸມັດຄົບ: Dr ໜີ້ສິນເຊົ່າ (ຕົ້ນ) + ດອກເບ້ຍ · Cr ບັນຊີທະນາຄານ"
+    }),
+    RCV: {
+      label: "ຮັບເງິນ (RV)", icon: "📥", kind: "RV", fx: true, project: true,
+      docs: [{ key: "advice", label: "ໃບຮັບເງິນ / Bank advice" }],
+      fields: [{ k: "bank", label: "ເງິນເຂົ້າບັນຊີ *", type: "cashbank" }],
+      lines: { label: "ລາຍການ (Cr)", accounts: nonCash },
+      book: "ອະນຸມັດຄົບ: Dr ບັນຊີທະນາຄານ/ເງິນສົດ · Cr ແຕ່ລະໝວດ (ລູກໜີ້, ດອກເບ້ຍ, ຮັບຄືນ...)",
+      payee: (f, r) => Acc.accName(f.bank) + " · " + (r.vlines || []).length + " ລາຍການ",
+      journal: (r, f) => [{ account: f.bank, debit: r.amount, credit: 0, memo: r.purpose }]
+        .concat((r.vlines || []).map(l => ({ account: l.account, debit: 0, credit: l.amount, memo: lineMemo(r, l) })))
+    },
+    FXX: {
+      label: "ແລກປ່ຽນເງິນຕາ", icon: "🔁", kind: "JV", fx: true,
+      docs: [{ key: "slip", label: "ໃບແລກປ່ຽນ / ໃບຢັ້ງຢືນທະນາຄານ" }, { key: "rate", label: "ອັດຕາອ້າງອີງ (BOL / ທະນາຄານ)" }],
+      fields: [{ k: "dir", label: "ທິດທາງ *", type: "select", options: [["buy", "ຊື້ເງິນຕາ (ຈ່າຍກີບ)"], ["sell", "ຂາຍເງິນຕາ (ຮັບກີບ)"]] },
+        { k: "from", label: "ຈາກບັນຊີ *", type: "cashbank" }, { k: "to", label: "ເຂົ້າບັນຊີ *", type: "cashbank" },
+        { k: "orig", label: "ຈຳນວນເງິນຕາ *", type: "number" }, { k: "amount", label: "ຍອດກີບ (ທີ່ຮັບ/ຈ່າຍຈິງ) *", type: "number" }],
+      book: "ອະນຸມັດຄົບ: Dr ບັນຊີປາຍທາງ · Cr ບັນຊີຕົ້ນທາງ · ສ່ວນຕ່າງ (ມູນຄ່າ ຕາມອັດຕາ − ກີບຈິງ) ລົງ ກຳໄລ/ຂາດທຶນ FX",
+      check(d, r) {
+        if (!Acc.acc(d.from) || !Acc.acc(d.to)) throw new Error("ເລືອກບັນຊີຕົ້ນທາງ ແລະ ປາຍທາງ");
+        if (d.from === d.to) throw new Error("ບັນຊີຕົ້ນທາງ ແລະ ປາຍທາງຕ້ອງຕ່າງກັນ");
+        if (r.ccy === "LAK") throw new Error("ເລືອກສະກຸນເງິນຕາຕ່າງປະເທດ");
+        if (!(Number(d.orig) > 0)) throw new Error("ໃສ່ຈຳນວນເງິນຕາ");
+      },
+      payee: f => Acc.accName(f.from) + " → " + Acc.accName(f.to),
+      journal: (r, f) => {
+        const value = round(Number(f.orig) * Number(r.rate)), lak = r.amount;
+        const buy = f.dir !== "sell"; // buy: Dr foreign (value) / Cr LAK ; sell: Dr LAK / Cr foreign (value)
+        const dr = buy ? value : lak, cr = buy ? lak : value;
+        const jl = [{ account: f.to, debit: dr, credit: 0, memo: r.purpose }, { account: f.from, debit: 0, credit: cr, memo: r.purpose }];
+        if (dr > cr) jl.push({ account: Acc.PA("FX"), debit: 0, credit: round(dr - cr), memo: "FX " + r.number });
+        if (cr > dr) jl.push({ account: Acc.PA("FX"), debit: round(cr - dr), credit: 0, memo: "FX " + r.number });
+        return jl;
+      }
+    },
     TRF: {
-      label: "ໂອນເງິນ (ສົດ ↔ ທະນາຄານ)", icon: "🔁", kind: "GL",
+      label: "ໂອນເງິນ (ສົດ ↔ ທະນາຄານ)", icon: "🔁", kind: "JV",
       docs: [{ key: "slip", label: "ໃບໂອນ / ໃບຝາກ-ຖອນ ຈາກທະນາຄານ" }],
       fields: [{ k: "from", label: "ຈາກບັນຊີ *", type: "cashbank" }, { k: "to", label: "ເຂົ້າບັນຊີ *", type: "cashbank" }, { k: "amount", label: "ຈຳນວນເງິນ *", type: "number" }],
       book: "ອະນຸມັດຄົບ: Dr ບັນຊີປາຍທາງ · Cr ບັນຊີຕົ້ນທາງ",
@@ -139,13 +208,29 @@
   }
 
   function createV(type, data, role) {
-    const def = VDEFS[type], date = data.date || today(), amount = round(data.amount);
+    const def = VDEFS[type], date = data.date || today();
+    const ccy = def.fx ? String(data.ccy || "LAK").toUpperCase() : "LAK";
+    const rate = ccy === "LAK" ? 1 : Number(data.rate);
+    if (CCYS.indexOf(ccy) === -1) throw new Error("ສະກຸນເງິນບໍ່ຖືກ");
+    if (ccy !== "LAK" && !(rate > 0)) throw new Error("ໃສ່ອັດຕາແລກປ່ຽນ");
+    const f = {};
+    def.fields.forEach(x => { if (x.k !== "amount") f[x.k] = x.type === "number" ? Number(data[x.k]) || 0 : String(data[x.k] || ""); });
+    let amount, vlines;
+    if (def.lines) {
+      const ok = new Set(def.lines.accounts().map(a => a.code));
+      vlines = (data.lines || []).filter(l => Number(l.orig) > 0).map(l => ({ account: String(l.account || ""), memo: String(l.memo || ""), orig: Number(l.orig), amount: round(Number(l.orig) * rate) }));
+      if (!vlines.length) throw new Error("ໃສ່ຢ່າງໜ້ອຍ 1 ລາຍການ");
+      vlines.forEach(l => { if (!ok.has(l.account)) throw new Error("ເລືອກບັນຊີໃຫ້ຖືກຕ້ອງ: " + (l.memo || l.account || "(ວ່າງ)")); });
+      if (!Acc.acc(f.bank)) throw new Error("ເລືອກບັນຊີທະນາຄານ / ເງິນສົດ");
+      amount = round(vlines.reduce((s, l) => s + l.amount, 0));
+    } else amount = round(data.amount);
     if (!(amount > 0)) throw new Error("ໃສ່ຈຳນວນເງິນ");
-    const f = {}; def.fields.forEach(x => { if (x.type !== "number") f[x.k] = String(data[x.k] || ""); });
-    def.check(f);
-    const ccy = "LAK";
-    const r = Store.insert("requests", { type, generic: true, number: Acc.nextVoucher(def.kind, "requests", date, ccy), date, purpose: data.purpose, dept: data.dept || "",
-      payee: def.payee(f), amount, ccy, fields: f, docs: {}, requester_role: role, stage: "draft", approvals_done: [], created_at: new Date().toISOString() });
+    if (def.check) def.check(f, { ccy, rate });
+    const base = { type, generic: true, number: Acc.nextVoucher(def.kind, "requests", date), date, purpose: data.purpose, dept: data.dept || "",
+      amount, ccy, rate, fields: f, docs: {}, project_id: def.project ? String(data.project_id || "") : "", requester_role: role, stage: "draft", approvals_done: [], created_at: new Date().toISOString() };
+    if (vlines) base.vlines = vlines;
+    base.payee = def.payee(f, base);
+    const r = Store.insert("requests", base);
     log(r, "create", role);
     if (data.docs) setDocs(r.id, data.docs, role);
     return Store.get("requests", r.id);
@@ -153,8 +238,15 @@
   // [[label, value]] for the detail page
   function summary(r) {
     const def = VDEFS[r.type]; if (!def) return [];
-    const out = def.fields.filter(x => x.type !== "number").map(x => [x.label.replace(" *", ""), Acc.accName(r.fields && r.fields[x.k])]);
-    out.push(["ສະກຸນ", r.ccy || "LAK"]); return out;
+    const out = def.fields.filter(x => x.k !== "amount" && x.type !== "number").map(x => {
+      const v = r.fields && r.fields[x.k], o = (x.options || []).find(p => p[0] === v);
+      return [x.label.replace(" *", ""), o ? o[1] : (x.type === "select" ? v : Acc.accName(v))];
+    });
+    def.fields.filter(x => x.type === "number" && x.k !== "amount").forEach(x => out.push([x.label.replace(" *", ""), r.fields && r.fields[x.k]]));
+    out.push(["ສະກຸນ", r.ccy || "LAK"]);
+    if (r.ccy && r.ccy !== "LAK") out.push(["ອັດຕາ", Number(r.rate).toLocaleString("en-US")]);
+    if (r.project_id) { const p = Store.get("projects", r.project_id); out.push(["ໂຄງການ", p ? p.name : r.project_id]); }
+    return out;
   }
   function postV(r, date) {
     const def = VDEFS[r.type];
@@ -368,6 +460,11 @@
   }
   function warnings(r) {
     const w = [];
+    if (r.generic) {
+      const last = r.ccy && r.ccy !== "LAK" ? lastRate(r.ccy) : 0;
+      if (last && Math.abs(Number(r.rate) - last) / last > 0.02) w.push("ອັດຕາ " + r.ccy + " " + Number(r.rate).toLocaleString("en-US") + " ຕ່າງຈາກອັດຕາທີ່ບັນທຶກໄວ້ (" + last.toLocaleString("en-US") + ") ເກີນ 2% — ກວດກັບ BOL");
+      if (r.amount >= 50000000 && r.amount % 1000000 === 0) w.push("ຍອດກົມ " + Math.round(r.amount).toLocaleString("en-US") + " (≥ 50 ລ້ານ) — ກວດເອກະສານໃຫ້ລະອຽດ");
+    }
     const sp = splitWarning(r); if (sp) w.push(sp);
     if (r.type === "ADV") { const o = openAdvances(r.payee).filter(x => x.id !== r.id); if (o.length) w.push(r.payee + " ມີເງິນສຳຮອງຍັງບໍ່ເຄລຍ " + o.length + " ໃບ (" + o.map(x => x.number).join(", ") + ")"); }
     if (r.type === "CLR") { const adv = Store.get("requests", r.advance_id); if (adv && adv.due_clear && adv.due_clear < today()) w.push("ເຄລຍຊ້າກວ່າກຳນົດ (" + adv.due_clear + ")"); }
@@ -383,6 +480,6 @@
   function nextAction(r, role) { const c = canAct(r, role); return { label: NEXT[r.stage] || "", allowed: c.ok, why: c.why }; }
 
   window.Approval = { DEFAULT_TIERS, matrix, setMatrix, chainFor, chainState, canApproveStep };
-  window.Flows = { VDEFS, cashBankAccounts, docsOf, docDefsFor, missingDocs, setDocs, summary, TYPES, STAGE_LABEL, ENDED, settings, create, submit, approve, reject, cancel, pay, receiveRefund, canAct, nextAction, queue,
+  window.Flows = { VDEFS, CCYS, lastRate, cashBankAccounts, docsOf, docDefsFor, missingDocs, setDocs, summary, TYPES, STAGE_LABEL, ENDED, settings, create, submit, approve, reject, cancel, pay, receiveRefund, canAct, nextAction, queue,
     linesOf, history, totalOf, amountOf, splitVat, openAdvances, overdueAdvances, advanceOutstanding, warnings };
 })();
