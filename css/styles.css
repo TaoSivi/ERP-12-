@@ -285,3 +285,7 @@ table.data tr:hover td { background:#fafcfc; }
 .dz-sub { min-height:44px; padding:0 18px; border:0; border-top:1px solid #eef1f4; background:#fafcfc; color:#0c7c79; font-weight:600; font-size:14px; text-align:left; cursor:pointer; }
 .dz-sub:hover:not(:disabled) { background:#e6f6f5; }
 .dz-main:focus-visible, .dz-sub:focus-visible { outline:2px solid #0a9d99; outline-offset:-2px; }
+/* financial statements */
+.fs-t td,.fs-t th{vertical-align:bottom}.fs-t th small{font-weight:400;color:#64748b}
+.fs-h td{font-weight:700;padding-top:14px;background:#f8fafc}.fs-h2 td{font-weight:600;color:#334155}
+.fs-tot td{font-weight:700;border-top:1px solid #94a3b8}
