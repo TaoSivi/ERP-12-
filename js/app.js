@@ -742,14 +742,14 @@
   }
   function glPL() {
     const pl = Acc.plData();
-    return `<div class="card p-6 max-w-xl">
+    return `<div class="card p-6">
       ${plRow("ລາຍຮັບ", pl.revenue)}${plRow("ຕົ້ນທຶນຂາຍ (COGS)", -pl.cogs)}${plRow("ກຳໄລຂັ້ນຕົ້ນ", pl.grossProfit, true)}
       ${plRow("ຄ່າໃຊ້ຈ່າຍອື່ນ", -pl.expense)}${plRow("ກຳໄລສຸດທິ", pl.net, true, pl.net >= 0 ? "#15803d" : "#b91c1c")}</div>`;
   }
   function glBS() {
     const assets = Acc.sumByType("Asset"), liab = Acc.sumByType("Liability"), eq = Acc.sumByType("Equity"), ni = Acc.plData().net;
     const totalEq = eq + ni;
-    return `<div class="grid md:grid-cols-2 gap-4 max-w-3xl">
+    return `<div class="grid md:grid-cols-2 gap-4">
       <div class="card p-5"><h3 class="font-semibold mb-3">ຊັບສິນ (Assets)</h3>${Store.where("accounts", a => a.type === "Asset" && !a.is_header).map(a => plRow(a.name, Acc.accountBalance(a.code))).join("")}${plRow("ລວມຊັບສິນ", assets, true)}</div>
       <div class="card p-5"><h3 class="font-semibold mb-3">ໜີ້ສິນ & ທຶນ</h3>${Store.where("accounts", a => a.type === "Liability" && !a.is_header).map(a => plRow(a.name, Acc.accountBalance(a.code))).join("")}${plRow("ກຳໄລສະສົມ (ງວດນີ້)", ni)}${plRow("ລວມໜີ້ສິນ+ທຶນ", liab + totalEq, true)}</div>
       <div class="md:col-span-2 hint">${Math.abs(assets - (liab + totalEq)) < 1 ? "✔ ສົມດຸນ: A = L + E" : "⚠️ ຄວນກວດ: A ≠ L+E (ຕ່າງ " + M(assets - liab - totalEq) + ")"}</div></div>`;
@@ -922,7 +922,7 @@
         ${reportCard("banking", "🏦 ກະແສເງິນສົດ", "ລາຍການ Payment ຮັບ/ຈ່າຍ")}
         ${reportCard("inventory", "📦 ມູນຄ່າສະຕັອກ", "Stock valuation & Stock Card")}
       </div>
-      <div class="card p-5 mb-5 max-w-lg"><h3 class="font-semibold mb-3">🧾 VAT Return (ຍືນ DRD)</h3>
+      <div class="card p-5 mb-5"><h3 class="font-semibold mb-3">🧾 VAT Return (ຍືນ DRD)</h3>
         <div class="space-y-1 text-sm">${plRow("Output VAT (ຂາຍ)", vatOut)}${plRow("Input VAT (ຊື້)", -vatIn)}${plRow("VAT ຕ້ອງຍືນ", vatOut - vatIn, true)}</div></div>
       <div class="card p-5"><h3 class="font-semibold mb-3">🛡️ Audit Log (ລ່າສຸດ)</h3>
         <table class="data"><thead><tr><th>ເວລາ</th><th>ຜູ້ໃຊ້</th><th>ການກະທຳ</th><th>ລາຍລະອຽດ</th></tr></thead><tbody>
