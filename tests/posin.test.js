@@ -87,9 +87,9 @@ test("a locked period blocks the day; unlocking lets the next sync post it", asy
   assert.notEqual(c.Posin.recOf("b1", "2026-10-05").status, "blocked");
 });
 
-test("today is never posted (the day is not finished)", async () => {
+test("with live mode OFF today is not posted (the day is not finished)", async () => {
   const resp = clone(FIX); resp.today = "2026-10-10";
-  const c = await app(resp); const r = await c.Posin.sync({ all: true });
+  const c = await app(resp); c.Posin.setLink({ live: false }); const r = await c.Posin.sync({ all: true });
   assert.equal(r.skippedOpen, 8); assert.equal(c.Posin.recOf("b1", "2026-10-10"), null); assert.ok(c.Posin.recOf("b1", "2026-10-09"));
 });
 
@@ -151,4 +151,19 @@ test("the default pull window reaches back ~2 months (late POS corrections); lon
   asked.length = 0; await c.Posin.sync({ from: "2026-01-01", to: "2026-08-01" });
   assert.equal(asked.length, 3, "213 days = 3 pieces of at most 90 days"); asked.forEach(p => assert.ok((Date.parse(p[1]) - Date.parse(p[0])) / 86400000 <= 89));
   assert.equal(asked[0][0], "2026-01-01"); assert.equal(asked[2][1], "2026-08-01");
+});
+
+test("live mode: today is posted at once; later bills post only the difference; the flag clears when the day ends", async () => {
+  const resp = clone(FIX); resp.today = "2026-10-10";
+  const c = await app(resp); await c.Posin.sync({ all: true });
+  const rec = c.Posin.recOf("b1", "2026-10-10"); assert.ok(rec && rec.open, "today is stored and marked open");
+  assert.equal(rec.status, "posted", "a clean open day posts immediately (no weekday-average warning on a part day)");
+  const rev = () => c.Acc.accountBalance("4110") + c.Acc.accountBalance("4120") + c.Acc.accountBalance("4100"), before = rev(), jes = c.Store.all("journal_entries").length;
+  await c.Posin.sync({ all: true }); assert.equal(c.Store.all("journal_entries").length, jes, "same data again changes nothing");
+  const more = clone(resp), o = days(more)["2026-10-10"]; // another bill rings in
+  o.sales += 100000; o.vat += 10000; o.pay["ເງິນສົດ"] = (o.pay["ເງິນສົດ"] || 0) + 110000; o.byCat[Object.keys(o.byCat)[0]] += 100000;
+  c.Posin.setTransport(async () => clone(more)); await c.Posin.sync({ all: true });
+  assert.equal(adjJEs(c).length, 1); assert.equal(rev() - before, 100000, "sales grew by exactly the new bill");
+  more.today = "2026-10-11"; await c.Posin.sync({ all: true });
+  assert.equal(c.Posin.recOf("b1", "2026-10-10").open, false, "the day is closed now");
 });

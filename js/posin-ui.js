@@ -8,7 +8,7 @@
   const view = () => document.getElementById("view");
   const can = () => window.AppCtx.canDo("post", "posin") || ["Admin", "Manager", "Accountant"].indexOf(window.AppCtx.currentRole()) !== -1;
   const STATUS = { posted: ["s-done", "ລົງບັນຊີແລ້ວ"], held: ["s-wait", "ລໍກວດ"], blocked: ["s-bad", "ຕິດຂັດ"], skipped: ["s-draft", "ຂ້າມ"], new: ["s-run", "ໃໝ່"] };
-  const chip = r => { const s = STATUS[r.status] || STATUS.new; return `<span class="chip ${s[0]}">${s[1]}${r.status === "posted" && r.auto ? " · ອັດຕະໂນມັດ" : ""}${r.changed ? " · POS ແກ້ໄຂ" : ""}${(r.adj_ids || []).length ? " · ປັບ " + r.adj_ids.length : ""}</span>`; };
+  const chip = r => { const s = STATUS[r.status] || STATUS.new; return `<span class="chip ${s[0]}">${s[1]}${r.status === "posted" && r.auto ? " · ອັດຕະໂນມັດ" : ""}${r.open ? " · ມື້ນີ້ (ກຳລັງຂາຍ)" : ""}${r.changed ? " · POS ແກ້ໄຂ" : ""}${(r.adj_ids || []).length ? " · ປັບ " + r.adj_ids.length : ""}</span>`; };
   const collected = d => Object.keys(d.pay || {}).reduce((s, k) => s + d.pay[k], 0);
   const act = (fn, ok) => { try { const r = fn(); if (ok) UI.toast(ok, "ok"); render(); return r; } catch (e) { UI.toast(e.message, "err"); } };
 
@@ -93,12 +93,13 @@
       <div class="grid sm:grid-cols-2 gap-3"><div><label class="field">ເລີ່ມດຶງຕັ້ງແຕ່ວັນທີ</label><input class="input" type="date" id="ps-start" value="${E(lk.start)}"></div>
         <div><label class="field">ເງິນສົດເກີນ/ຂາດ ເກີນເທົ່າໃດ ໃຫ້ຄົນກວດ (ກີບ)</label><input class="input num" type="number" id="ps-lim" value="${lk.cash_diff_limit}"></div></div>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="ps-auto" ${lk.auto ? "checked" : ""}> ດຶງ ແລະ ລົງບັນຊີເອງ ທຸກຄັ້ງທີ່ເປີດ ERP (ມື້ປົກກະຕິ)</label>
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="ps-live" ${lk.live ? "checked" : ""}> ລົງບັນຊີທຸລະກຳຂອງມື້ນີ້ທັນທີ (ບໍ່ລໍມື້ອື່ນ) — ບິນເພີ່ມພາຍຫຼັງ ລົງເປັນລາຍການປັບຕື່ມ</label>
       <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="ps-hold" ${lk.hold_on_warn ? "checked" : ""}> ມື້ທີ່ມີຂໍ້ສັງເກດ (ເງິນຂາດ, ຄືນເງິນຫຼາຍ, ຍອດຕ່າງຈາກປົກກະຕິ) ໃຫ້ຄົນກວດກ່ອນ</label></div>
       <div class="flex justify-between gap-2 mt-4"><button class="btn btn-ghost" id="ps-test">ທົດສອບການເຊື່ອມຕໍ່</button><div class="flex gap-2"><button class="btn btn-ghost" data-c>ປິດ</button><button class="btn btn-primary" id="ps-save">ບັນທຶກ</button></div></div>
       <p class="hint mt-2" id="ps-msg"></p>`, { onMount: (bd, close) => {
         const q = s => bd.querySelector(s);
         const save = () => { if (!can()) { UI.toast("ບໍ່ມີສິດ", "warn"); return false; }
-          Posin.setLink({ url: q("#ps-url").value.trim().replace(/\/+$/, ""), start: q("#ps-start").value, cash_diff_limit: Number(q("#ps-lim").value) || 0, auto: q("#ps-auto").checked, hold_on_warn: q("#ps-hold").checked }, q("#ps-tok").value.trim() || undefined); return true; };
+          Posin.setLink({ url: q("#ps-url").value.trim().replace(/\/+$/, ""), start: q("#ps-start").value, cash_diff_limit: Number(q("#ps-lim").value) || 0, auto: q("#ps-auto").checked, live: q("#ps-live").checked, hold_on_warn: q("#ps-hold").checked }, q("#ps-tok").value.trim() || undefined); return true; };
         q("[data-c]").onclick = close;
         q("#ps-save").onclick = () => { if (save()) { close(); UI.toast("ບັນທຶກແລ້ວ", "ok"); render(); } };
         q("#ps-test").onclick = async () => {

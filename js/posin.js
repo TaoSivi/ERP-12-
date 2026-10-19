@@ -33,7 +33,7 @@
   function link() {
     const c = get("pos_link") || {};
     let tok = ""; try { tok = localStorage.getItem("laobooks_pos_token") || ""; } catch (e) {}
-    return { url: String(c.url || "").trim().replace(/\/+$/, ""), token: tok, auto: c.auto !== false, start: c.start || "", cash_diff_limit: c.cash_diff_limit != null ? Number(c.cash_diff_limit) : 50000,
+    return { url: String(c.url || "").trim().replace(/\/+$/, ""), token: tok, auto: c.auto !== false, live: c.live !== false, start: c.start || "", cash_diff_limit: c.cash_diff_limit != null ? Number(c.cash_diff_limit) : 50000,
       hold_on_warn: c.hold_on_warn !== false, last_pull: c.last_pull || "", last_result: c.last_result || null };
   }
   function setLink(patch, token) {
@@ -127,12 +127,13 @@
     opts = opts || {}; const lk = link(), out = { added: 0, changed: 0, same: 0, skippedOpen: 0, skippedOld: 0 };
     (resp.branches || []).forEach(br => Object.keys(br.days || {}).forEach(d => {
       const day = br.days[d];
-      if (d >= resp.today) { out.skippedOpen++; return; }                      // today is not finished
+      const open = d >= resp.today;                                           // today is still being sold: in live mode it is posted now and corrected later by delta
+      if (open && !lk.live) { out.skippedOpen++; return; }
       if (lk.start && d < lk.start && !opts.all) { out.skippedOld++; return; }
       const id = keyOf(br.id, d), h = hash(day), old = recOf(br.id, d);
-      if (!old) { Store.insert("pos_days", { id, branch: br.id, branch_name: br.name || br.id, date: d, day, hash: h, status: "new", issues: [], pulled_at: new Date().toISOString() }); out.added++; }
-      else if (old.hash !== h) { Store.update("pos_days", id, { day, hash: h, pulled_at: new Date().toISOString(), changed: old.status === "posted" ? true : old.changed }); out.changed++; }
-      else out.same++;
+      if (!old) { Store.insert("pos_days", { id, branch: br.id, branch_name: br.name || br.id, date: d, day, hash: h, status: "new", issues: [], open, pulled_at: new Date().toISOString() }); out.added++; }
+      else if (old.hash !== h) { Store.update("pos_days", id, { day, hash: h, open, pulled_at: new Date().toISOString(), changed: old.status === "posted" ? true : old.changed }); out.changed++; }
+      else { if (!!old.open !== open) Store.update("pos_days", id, { open }); out.same++; }
     }));
     return out;
   }
@@ -143,7 +144,7 @@
     recs().sort((a, b) => a.date.localeCompare(b.date)).forEach(rec => {
       if (rec.status === "skipped") return;
       if (rec.status === "posted") { if (rec.changed) { try { if (adjust(rec.id, role)) r.adjusted++; } catch (e) { Store.update("pos_days", rec.id, { adjust_error: e.message }); } } return; }
-      const issues = check(rec.day, M, { norm: avgSales(rec.branch, rec.date), ratesChanged: ratesChanged(rec.branch, rec.date, rec.day), link: lk });
+      const issues = check(rec.day, M, { norm: rec.open ? null : avgSales(rec.branch, rec.date), ratesChanged: ratesChanged(rec.branch, rec.date, rec.day), link: lk });
       const level = issues.some(i => i.level === "block") ? "blocked" : issues.some(i => i.level === "warn") && lk.hold_on_warn ? "held" : "ok";
       if (level === "ok" && lk.auto) { try { post(rec.id, role || "auto", true); r.posted++; return; } catch (e) { Store.update("pos_days", rec.id, { status: "blocked", issues: issues.concat([{ level: "block", msg: e.message }]) }); r.blocked++; return; } }
       Store.update("pos_days", rec.id, { status: level === "ok" ? "held" : level, issues });
@@ -221,7 +222,7 @@
   let busy = false;
   async function autoOnOpen(role) {
     const lk = link(); if (busy || !lk.auto || !lk.url || !lk.token) return null;
-    const last = get("pos_link") && get("pos_link").last_run; if (last && Date.now() - last < 30 * 60 * 1000) return null; // at most every 30 minutes
+    const last = get("pos_link") && get("pos_link").last_run; if (last && Date.now() - last < (lk.live ? 3 : 30) * 60 * 1000) return null; // at most every 3 minutes (live) / 30 minutes
     busy = true; try { put("pos_link", { last_run: Date.now() }); return await sync({ role }); } finally { busy = false; }
   }
 
