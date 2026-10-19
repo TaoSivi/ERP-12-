@@ -14,7 +14,7 @@
     "credit_notes","cn_lines","debit_notes","dn_lines","prepaids","deferreds","fx_rates",
     "cost_centres","projects",
     "purchase_requisitions","pr_lines","recurring","bank_statements","locations","stock_serials","stock_transfers","leaves",
-    "companies","salary_revisions","pos_days",
+    "companies","salary_revisions","pos_days","ext_in",
     "sales_orders","so_lines","deliveries","delivery_lines","users","holidays",
     "boms","bom_lines",
     "employees","payroll","assets","budgets","audit_log",

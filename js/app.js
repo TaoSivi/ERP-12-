@@ -952,7 +952,7 @@
             <div><label class="field">ໂໝດຂັ້ນສູງ</label><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="s-adv" ${c.show_advanced ? "checked" : ""}> ສະແດງ ເອກະສານ (DMS) + ບັນຊີຂັ້ນສູງ (ECL, NRV, Impairment, Landed Cost, FX Adjust, Job Costing, Retention, BOM)</label></div>
             <button class="btn btn-primary" id="s-save">ບັນທຶກ</button>
             <div class="mt-4"><label class="field">ບົດບາດ (RBAC — ຄວບຄຸມເມນູ)</label><select class="input" id="s-role"></select></div>
-            <div class="mt-3"><button class="btn btn-ghost btn-sm" id="s-company">ຈັດການບໍລິສັດ (Multi-company)</button> <button class="btn btn-ghost btn-sm" id="s-users">ຜູ້ໃຊ້</button> <button class="btn btn-ghost btn-sm" id="s-perms">Permissions Matrix</button></div>
+            <div class="mt-3"><button class="btn btn-ghost btn-sm" id="s-company">ຈັດການບໍລິສັດ (Multi-company)</button> <button class="btn btn-ghost btn-sm" id="s-users">ຜູ້ໃຊ້</button> <button class="btn btn-ghost btn-sm" id="s-api">API ເຊື່ອມແອັບອື່ນ</button> <button class="btn btn-ghost btn-sm" id="s-perms">Permissions Matrix</button></div>
           </div>
         </div>
         <div class="card p-5"><h3 class="font-semibold mb-3">ລະຫັດ VAT <button class="btn btn-ghost btn-sm" id="s-tax">+ ເພີ່ມ</button> <button class="btn btn-ghost btn-sm" id="s-fx">ອັດຕາແລກປ່ຽນ</button> <button class="btn btn-ghost btn-sm" id="s-posting">ກົດການລົງບັນຊີ</button></h3>
@@ -987,6 +987,7 @@
     const spo = view().querySelector("#s-posting"); if (spo) spo.onclick = () => postingRulesModal();
     const rsel = view().querySelector("#s-role"); if (rsel) { rsel.innerHTML = Object.keys(ROLE_PERMS).map(r => `<option value="${r}" ${r === currentRole() ? "selected" : ""}>${r}</option>`).join(""); rsel.onchange = () => { try { localStorage.setItem("laobooks_role", rsel.value); localStorage.removeItem("laobooks_user"); } catch (e) {} renderUserChip(); buildNav(); UI.toast("ບົດບາດ: " + rsel.value, "ok"); location.hash = "#/dashboard"; }; }
     const scmp = view().querySelector("#s-company"); if (scmp) scmp.onclick = () => companySwitchModal();
+    const sapi = view().querySelector("#s-api"); if (sapi) sapi.onclick = () => ExtInUI.open();
     const sus = view().querySelector("#s-users"); if (sus) sus.onclick = () => { location.hash = "#/usersadmin"; };
     const spm = view().querySelector("#s-perms"); if (spm) spm.onclick = () => permissionsMatrixModal();
     const sbk = view().querySelector("#s-backup"); if (sbk) sbk.onclick = () => { fableBackup(); const h = view().querySelector("#s-backup-hint"); if (h) h.textContent = fableLastBackupText(); };
