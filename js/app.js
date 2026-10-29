@@ -736,7 +736,8 @@
   function jeDetail(id) {
     const je = Store.get("journal_entries", id); const lines = Store.where("journal_lines", l => l.je_id === id);
     const nm = l => String(l.account_name || "").replace(String(l.account || "") + " ", "");
-    UI.modal("JE " + je.number, `<div class="hint mb-2">${UI.fmtDate(je.date)} · ${E(je.memo)}</div>
+    const srcColl = { INVOICE: "invoices", BILL: "bills", PAYMENT: "payments", CREDIT_NOTE: "credit_notes", DEBIT_NOTE: "debit_notes" }[String(je.source_type).replace(/_VOID$/, "")], srcDoc = srcColl && je.source_id ? Store.get(srcColl, je.source_id) : null;
+    UI.modal("JE " + je.number, `<div class="hint mb-2">${UI.fmtDate(je.date)} · ${E(je.memo)}</div><div class="hint mb-2">ແຫຼ່ງ: ${E(je.source_type || "-")}${srcDoc ? " · ເອກະສານ " + E(srcDoc.number || srcDoc.id) : ""} · ຜູ້ລົງບັນຊີ: ${E(je.posted_by || "-")}</div>
       <div class="tbl-wrap"><table class="data"><thead><tr><th>ເລກບັນຊີ</th><th>ຊື່ບັນຊີ</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody>
       ${lines.map(l => `<tr><td>${E(l.account || "")}</td><td>${E(nm(l))}</td><td class="num">${l.debit ? M(l.debit) : ""}</td><td class="num">${l.credit ? M(l.credit) : ""}</td></tr>`).join("")}
       <tr class="font-bold bg-slate-50"><td colspan="2">ລວມ</td><td class="num">${M(je.total_debit)}</td><td class="num">${M(je.total_credit)}</td></tr></tbody></table></div>`, { wide: true });
@@ -956,7 +957,7 @@
             <div class="mt-3"><button class="btn btn-ghost btn-sm" id="s-company">ຈັດການບໍລິສັດ (Multi-company)</button> <button class="btn btn-ghost btn-sm" id="s-users">ຜູ້ໃຊ້</button> <button class="btn btn-ghost btn-sm" id="s-api">API ເຊື່ອມແອັບອື່ນ</button> <button class="btn btn-ghost btn-sm" id="s-perms">Permissions Matrix</button></div>
           </div>
         </div>
-        <div class="card p-5"><h3 class="font-semibold mb-3">ລະຫັດ VAT <button class="btn btn-ghost btn-sm" id="s-tax">+ ເພີ່ມ</button> <button class="btn btn-ghost btn-sm" id="s-fx">ອັດຕາແລກປ່ຽນ</button> <button class="btn btn-ghost btn-sm" id="s-map">ຕາຕະລາງແມບປິ້ງ</button> <button class="btn btn-ghost btn-sm" id="s-posting">ກົດການລົງບັນຊີ</button></h3>
+        <div class="card p-5"><h3 class="font-semibold mb-3">ລະຫັດ VAT <button class="btn btn-ghost btn-sm" id="s-tax">+ ເພີ່ມ</button> <button class="btn btn-ghost btn-sm" id="s-fx">ອັດຕາແລກປ່ຽນ</button> <button class="btn btn-ghost btn-sm" id="s-mon">ຕິດຕາມການລົງບັນຊີ</button> <button class="btn btn-ghost btn-sm" id="s-map">ຕາຕະລາງແມບປິ້ງ</button> <button class="btn btn-ghost btn-sm" id="s-posting">ກົດການລົງບັນຊີ</button></h3>
           <table class="data"><thead><tr><th>ຊື່</th><th class="num">ອັດຕາ%</th><th>ປະເພດ</th></tr></thead><tbody>
           ${taxes.map(t => `<tr><td>${E(t.name)}</td><td class="num">${t.rate}</td><td>${E(t.type)}</td></tr>`).join("")}</tbody></table>
           <h3 class="font-semibold mt-5 mb-2">ການເຊື່ອມຕໍ່ຂໍ້ມູນ</h3>
@@ -987,6 +988,7 @@
     const stx = view().querySelector("#s-tax"); if (stx) stx.onclick = () => taxCodeModal(); const sfx = view().querySelector("#s-fx"); if (sfx) sfx.onclick = () => fxRateModal();
     const spo = view().querySelector("#s-posting"); if (spo) spo.onclick = () => postingRulesModal();
     const sam = view().querySelector("#s-map"); if (sam) sam.onclick = () => accountMappingModal();
+    const smon = view().querySelector("#s-mon"); if (smon) smon.onclick = () => postingMonitorModal();
     const rsel = view().querySelector("#s-role"); if (rsel) { rsel.innerHTML = Object.keys(ROLE_PERMS).map(r => `<option value="${r}" ${r === currentRole() ? "selected" : ""}>${r}</option>`).join(""); rsel.onchange = () => { try { localStorage.setItem("laobooks_role", rsel.value); localStorage.removeItem("laobooks_user"); } catch (e) {} renderUserChip(); buildNav(); UI.toast("ບົດບາດ: " + rsel.value, "ok"); location.hash = "#/dashboard"; }; }
     const scmp = view().querySelector("#s-company"); if (scmp) scmp.onclick = () => companySwitchModal();
     const sapi = view().querySelector("#s-api"); if (sapi) sapi.onclick = () => ExtInUI.open();
@@ -2132,7 +2134,7 @@
 
   /* ================= Posting Rules + Excel import ================= */
   const POSTING_META = { AR:["ລູກໜີ້ (AR) — ຕອນຂາຍ","Dr"], REV:["ລາຍຮັບຂາຍ","Cr"], VAT_OUT:["VAT ຂາຍ (Output)","Cr"], VAT_IN:["VAT ຊື້ (Input)","Dr"], INV:["ສິນຄ້າຄົງເຫຼືອ","Dr/Cr"], COGS:["ຕົ້ນທຶນຂາຍ (COGS)","Dr"], AP:["ເຈົ້າໜີ້ (AP) — ຕອນຊື້","Cr"], GRIR:["GR/IR (ຮັບຍັງບໍ່ Bill)","Cr"], RETENTION:["ເງິນຄ້ຳປະກັນຮັບ","Dr"], WHT:["WHT ຄ້າງຍືນ","Cr"], PIT:["PIT ຄ້າງຈ່າຍ","Cr"], LSSO_PAY:["LSSO ຄ້າງຈ່າຍ","Cr"], SALARY:["ຄ່າເງິນເດືອນ","Dr"], LSSO_EXP:["LSSO ນາຍຈ້າງ","Dr"], DEPR:["ຄ່າເສື່ອມລາຄາ","Dr"], ACC_DEPR:["ຄ່າເສື່ອມສະສົມ","Cr"], PREPAID:["ຄ່າໃຊ້ຈ່າຍລ່ວງໜ້າ","Dr"], DEFERRED:["ຮັບລ່ວງໜ້າ","Cr"], BADDEBT:["ໜີ້ສູນ","Dr"], FX:["ກຳໄລ/ຂາດທຶນ FX","Dr/Cr"], PTAX_EXP:["ຄ່າອາກອນກຳໄລ","Dr"], PTAX_PAY:["ອາກອນກຳໄລຄ້າງ","Cr"], RETAINED:["ກຳໄລສະສົມ","Cr"], OTHER_INC:["ລາຍຮັບອື່ນ","Cr"], GEN_EXP:["ຄ່າໃຊ້ຈ່າຍທົ່ວໄປ","Dr"], OBE:["ຍອດຍົກມາ (OBE)","Cr"] };
-  function savePosting(nm) { if (Store.get("settings", "posting")) Store.update("settings", "posting", nm); else Store.insert("settings", Object.assign({ id: "posting" }, nm)); }
+  function savePosting(nm) { if (Store.get("settings", "posting")) Store.update("settings", "posting", nm); else Store.insert("settings", Object.assign({ id: "posting" }, nm)); PostMon.logRules(nm); }
   function autoDetectPosting() {
     const accts = Store.where("accounts", a => !a.is_header);
     const find = (kws, type) => { const a = accts.find(x => kws.some(k => (String(x.name || "").toLowerCase().indexOf(k) !== -1) || String(x.code || "") === k) && (!type || x.type === type)); return a ? a.code : null; };
@@ -2204,6 +2206,26 @@
     { label: "Stock ຍົກມາ (Opening)", dr: ["INV"], cr: ["OBE"] }
   ];
   function saveSplit(clean) { if (Store.get("settings", "posting_split")) Store.remove("settings", "posting_split"); Store.insert("settings", Object.assign({ id: "posting_split" }, clean)); }
+  function postingMonitorModal() {
+    const h = PostMon.health(), src = PostMon.bySource(30), snaps = PostMon.snapshots(), hist = PostMon.ruleHistory();
+    const ok = (b, t) => `<span class="badge ${b ? "green" : "red"}">${b ? "✓" : "⚠"} ${t}</span>`;
+    UI.modal("ຕິດຕາມການລົງບັນຊີ", `<div class="grid sm:grid-cols-2 gap-3 mb-4">
+        <div class="card p-4"><div class="hint">Journal ທັງໝົດ</div><div class="text-2xl font-bold">${h.journals}</div>${ok(!h.unbalanced.length, h.unbalanced.length ? "ບໍ່ດຸ່ນ: " + h.unbalanced.join(", ") : "ທຸກ Journal ດຸ່ນ (Dr = Cr)")}</div>
+        <div class="card p-4"><div class="hint">ວັນລັອກບັນຊີ</div><div class="text-2xl font-bold">${E(h.lock_date || "—")}</div><div class="hint">ກ່ອນວັນນີ້ ລົງ/ແກ້ບໍ່ໄດ້</div></div></div>
+      <h4 class="font-semibold mb-2 text-sm">ບັນຊີຍ່ອຍ ທຽບ ບັນຊີແຍກປະເພດ</h4>
+      <table class="data mb-4"><thead><tr><th>ລາຍການ</th><th class="num">ບັນຊີຍ່ອຍ</th><th class="num">ບັນຊີແຍກປະເພດ</th><th class="num">ຕ່າງ</th></tr></thead><tbody>${h.subledgers.map(s => `<tr><td>${E(s.name)}</td><td class="num">${M(s.subledger)}</td><td class="num">${M(s.gl)}</td><td class="num" style="color:${s.ok ? "#15803d" : "#b91c1c"}">${s.ok ? "✓" : M(s.diff)}</td></tr>`).join("")}</tbody></table>
+      <h4 class="font-semibold mb-2 text-sm">ຄິວທີ່ຕ້ອງຈັດການ</h4>
+      <p class="text-sm mb-4">POS ຕິດຂັດ <b>${h.inbox.pos_blocked}</b> · POS ລໍກວດ <b>${h.inbox.pos_held}</b> · API ຕິດຂັດ <b>${h.inbox.api_blocked}</b> <span class="hint">(ແກ້ໃນໜ້າ "ຮັບຈາກ POS" / Settings › API)</span></p>
+      <h4 class="font-semibold mb-2 text-sm">Journal ແຍກຕາມໂມດູນ (30 ວັນ)</h4>
+      <table class="data mb-4"><tbody>${src.map(s => `<tr><td>${E(s.source)}</td><td class="num">${s.count}</td><td class="num">${M(s.total)}</td></tr>`).join("") || '<tr><td class="hint">ຍັງບໍ່ມີ</td></tr>'}</tbody></table>
+      <h4 class="font-semibold mb-2 text-sm">ປິດງວດ (ເກັບ Trial Balance ກ່ອນ ແລ້ວລັອກ)</h4>
+      <div class="flex gap-2 mb-2"><input class="input" type="date" id="pm-date"><button class="btn btn-primary btn-sm" id="pm-close">ປິດງວດ</button></div>
+      ${snaps.length ? `<table class="data mb-4"><tbody>${snaps.map(s => `<tr><td>${E(s.date)}</td><td class="num">Dr ${M(s.dr)}</td><td>${E(s.by)} · ${E((s.taken_at || "").slice(0, 16).replace("T", " "))}</td></tr>`).join("")}</tbody></table>` : '<p class="hint mb-4">ຍັງບໍ່ເຄີຍປິດງວດ</p>'}
+      <h4 class="font-semibold mb-2 text-sm">ປະຫວັດການປ່ຽນກົດລົງບັນຊີ (${hist.length})</h4>
+      <p class="hint">${hist.length ? hist.slice(0, 5).map(x => E(x.ts.slice(0, 16).replace("T", " ")) + " · " + E(x.by)).join("<br>") : "ຍັງບໍ່ມີການປ່ຽນ (ໃຊ້ກົດເລີ່ມຕົ້ນ)"}</p>`, { wide: true });
+    const cb = document.getElementById("pm-close");
+    if (cb) cb.onclick = () => { const d = document.getElementById("pm-date").value; if (!d) return UI.toast("ເລືອກວັນທີ", "warn"); UI.confirmDialog("ປິດງວດ " + d + "? ຈະເກັບ Trial Balance ແລ້ວລັອກ — ກ່ອນວັນນີ້ ລົງ/ແກ້ບໍ່ໄດ້ອີກ", () => { try { PostMon.closePeriod(d); UI.toast("ປິດງວດແລ້ວ", "ok"); postingMonitorModal(); } catch (e) { UI.toast(e.message, "err"); } }); };
+  }
   // read-only overview of every posting rule (document → Dr / Cr), item exceptions and splits; printable
   function accountMappingModal() {
     const map = Object.assign({}, Acc.POSTING_DEFAULTS, Store.get("settings", "posting") || {}), meta = (typeof POSTING_META !== "undefined") ? POSTING_META : {};

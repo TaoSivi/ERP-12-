@@ -15,7 +15,7 @@ async function freshApp(opts = {}) {
   };
   ctx.window = ctx;
   vm.createContext(ctx);
-  for (const f of ["config", "store", "accounting", "guard", "autopost", "flows", "checks", "procure", "perms", "posin", "fs", "extin"]) {
+  for (const f of ["config", "store", "accounting", "guard", "autopost", "flows", "checks", "procure", "perms", "posin", "fs", "extin", "postmon"]) {
     const code = fs.readFileSync(path.join(__dirname, "..", "js", f + ".js"), "utf8");
     vm.runInContext(code, ctx, { filename: f + ".js" });
   }
