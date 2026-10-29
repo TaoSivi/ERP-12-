@@ -1,4 +1,4 @@
-# LaoBooks ERP
+# ST ERP (ເດີມ LaoBooks ERP)
 
 ERP ສຳລັບ SME ລາວ — ບັນຊີຄູ່, Invoice/Bill/PO, ສາງ (FIFO), POS, ເງິນເດືອນ (PIT/LSSO), ຊັບສິນຖາວອນ, ງົບປະມານ, ລາຍງານ.
 ເປັນເວັບ static (HTML + JS) ບໍ່ຕ້ອງ build.

@@ -2457,7 +2457,7 @@
       rd.onload = () => {
         try {
           const data = JSON.parse(rd.result);
-          if (!data || data.app !== "LaoBooks" || !data.collections) return UI.toast("ໄຟລ໌ນີ້ບໍ່ແມ່ນ backup ຂອງ LaoBooks", "err");
+          if (!data || data.app !== "LaoBooks" || !data.collections) return UI.toast("ໄຟລ໌ນີ້ບໍ່ແມ່ນ backup ຂອງ ST ERP", "err");
           const nRows = Object.values(data.collections).reduce((s, arr) => s + (Array.isArray(arr) ? arr.length : 0), 0);
           const cloudWarn = Store.mode === "cloud" ? " (ໝາຍເຫດ: ຢູ່ Cloud Mode ການກູ້ຄືນຈະຂຽນໃສ່ຂໍ້ມູນ browser ເທົ່ານັ້ນ)" : "";
           UI.confirmDialog(`ກູ້ຄືນຂໍ້ມູນຈາກ ${String(data.ts || "").slice(0, 10)} — ${nRows.toLocaleString()} ແຖວ? ຂໍ້ມູນປັດຈຸບັນໃນ browser ຈະຖືກແທນທີທັງໝົດ${cloudWarn}`, () => {
@@ -2646,7 +2646,7 @@
   /* ---------- ຄູ່ມືການໃຊ້ ---------- */
   function fableHelpModal() {
     const sec = (t, d) => `<div class="mb-3"><div class="font-semibold text-sm">${t}</div><div class="hint">${d}</div></div>`;
-    UI.modal("📘 ຄູ່ມືການໃຊ້ LaoBooks ERP", `
+    UI.modal("📘 ຄູ່ມືການໃຊ້ ST ERP", `
       <div class="grid sm:grid-cols-2 gap-x-6">
         ${sec("🏠 Dashboard", "ພາບລວມ: ເງິນສົດ, AR/AP, VAT, ກຣາຟ 12 ເດືອນ, ແຈ້ງເຕືອນ")}
         ${sec("✅ ວຽກຂອງຂ້ອຍ", "ໜ້າລວມສິ່ງທີ່ທ່ານຕ້ອງເຮັດ: ອະນຸມັດ, ແກ້ໄຂ, ຮັບຊາບແຈ້ງການ, ທວງໜີ້, ຈ່າຍ — ຕາມບົດບາດ")}
@@ -3825,7 +3825,7 @@
 
   /* ================= 🎓 Guided Tour (ຄັ້ງທຳອິດ) ================= */
   const TOUR_STEPS = [
-    { ic: "👋", title: "ຍິນດີຕ້ອນຮັບສູ່ LaoBooks", body: "ລະບົບ ERP ບັນຊີ + POS ຂາຍໜ້າຮ້ານ + ຈັດການເອກະສານ (DMS) ຄົບໃນບ່ອນດຽວ. ຂ້ອຍຈະພາເບິ່ງ 6 ຈຸດສຳຄັນ (30 ວິ)." },
+    { ic: "👋", title: "ຍິນດີຕ້ອນຮັບສູ່ ST ERP", body: "ລະບົບ ERP ບັນຊີ + POS ຂາຍໜ້າຮ້ານ + ຈັດການເອກະສານ (DMS) ຄົບໃນບ່ອນດຽວ. ຂ້ອຍຈະພາເບິ່ງ 6 ຈຸດສຳຄັນ (30 ວິ)." },
     { ic: "✅", title: "ວຽກຂອງຂ້ອຍ", body: "ໜ້າ 'ວຽກຂອງຂ້ອຍ' ລວມທຸກສິ່ງທີ່ທ່ານຕ້ອງເຮັດ — ອະນຸມັດ, ແກ້ໄຂ, ຮັບຊາບແຈ້ງການ, ທວງໜີ້ — ຕາມບົດບາດ. ເປີດເບິ່ງທຸກເຊົ້າ.", nav: "mytasks" },
     { ic: "🛒", title: "ຂາຍໜ້າຮ້ານ (POS)", body: "ກົດສິນຄ້າ → ເລືອກລູກຄ້າ/ໃສ່ສ່ວນຫຼຸດ → ຮັບເງິນ (ມີປຸ່ມເງິນດ່ວນ) → ຊຳລະ ພິມໃບບິນ. ຕັດສະຕັອກ+ລົງບັນຊີເອງ. ມີຄືນສິນຄ້າ ແລະ ສະຫຼຸບຍอດປະຈຳວັນ.", nav: "pos" },
     { ic: "📁", title: "ຈັດການເອກະສານ", body: "ອັບໂຫລດໄຟລ໌ → ຂໍອະນຸມັດຕາມໂຊ່ (workflow) → ເຜີຍແຜ່. ຈັດໂຟນເດີ, Tags, ແນບໃສ່ Invoice/Bill ໄດ້. ມີແຈ້ງການທີ່ຕ້ອງກົດ 'ຮັບຊາບ'.", nav: "docs" },
