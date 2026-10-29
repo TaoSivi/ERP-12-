@@ -153,7 +153,7 @@
       number: nextNumber("JE", "journal_entries", date),
       date: date || new Date().toISOString().slice(0, 10),
       source_type, source_id, memo: memo || "",
-      total_debit: td, total_credit: tc, status: "posted",
+      total_debit: td, total_credit: tc, status: "posted", posted_by: who(),
       created_at: new Date().toISOString()
     });
     cleaned.forEach(l => Store.insert("journal_lines", { je_id: je.id, account: l.account, account_name: l.account_name, debit: l.debit, credit: l.credit, memo: l.memo }));
@@ -211,21 +211,23 @@
     if (t.vat) jl.push({ account: PA("VAT_OUT"), debit: 0, credit: scale(t.vat), memo: "VAT ຂາຍ" });
 
     // COGS + inventory for stock items
-    let totalCogs = 0;
+    const cogsBy = {}; // "cogsAcct|invAcct" → value, so items with their own accounts post to them
     lines.forEach(l => {
       const it = Store.get("items", l.item_id);
       if (it && it.type === "stock") {
         const cogs = computeCOGS(it.id, l.qty);
         if (cogs) {
-          totalCogs += cogs;
+          const k = (it.cogs_account || PA("COGS")) + "|" + (it.inventory_account || PA("INV"));
+          cogsBy[k] = (cogsBy[k] || 0) + cogs;
           recordMove(it.id, "out", l.qty, cogs / (Number(l.qty) || 1), "INVOICE", inv.id, inv.date);
         }
       }
     });
-    if (totalCogs) {
-      jl.push({ account: PA("COGS"), debit: round(totalCogs), credit: 0, memo: "ຕົ້ນທຶນຂາຍ" });
-      jl.push({ account: PA("INV"), debit: 0, credit: round(totalCogs), memo: "ຕັດສິນຄ້າ (FIFO)" });
-    }
+    Object.keys(cogsBy).forEach(k => {
+      const ac = k.split("|");
+      jl.push({ account: ac[0], debit: round(cogsBy[k]), credit: 0, memo: "ຕົ້ນທຶນຂາຍ" });
+      jl.push({ account: ac[1], debit: 0, credit: round(cogsBy[k]), memo: "ຕັດສິນຄ້າ (FIFO)" });
+    });
 
     const je = postJournal({ date: inv.date, source_type: "INVOICE", source_id: inv.id, memo: "Invoice " + inv.number, lines: jl });
     Store.update("invoices", inv.id, Object.assign({ status: "posted", je_id: je.id, paid: 0 }, t));
@@ -702,8 +704,9 @@
   }
 
   /* ---------- Audit ---------- */
+  function who() { try { return (window.AppCtx && AppCtx.userLabel && AppCtx.userLabel()) || "system"; } catch (e) { return "system"; } }
   function audit(action, entity, entity_id, detail) {
-    Store.insert("audit_log", { ts: new Date().toISOString(), user: "Taow", action, entity, entity_id, detail: detail || "" });
+    Store.insert("audit_log", { ts: new Date().toISOString(), user: who(), action, entity, entity_id, detail: detail || "" });
   }
 
   window.Acc = {

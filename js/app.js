@@ -655,8 +655,9 @@
       { name: "uom", label: "ຫົວໜ່ວຍ (UOM)", col: "col-span-1" },
       { name: "sell_price", label: "ລາຄາຂາຍ", type: "number", col: "col-span-1" }, { name: "buy_price", label: "ລາຄາຊື້", type: "number", col: "col-span-1" },
       { name: "reorder_point", label: "ຈຸດສັ່ງຊື້ໃໝ່", type: "number", col: "col-span-1" },
-      { name: "tax_code", label: "ລະຫັດ VAT", type: "select", options: Store.all("taxcodes").map(t => ({ value: t.id, label: t.name })), col: "col-span-1" }
-    ], it || { type: "stock", uom: "ອັນ", sell_price: 0, buy_price: 0, reorder_point: 0, tax_code: "tax_out10" }, (d, close) => {
+      { name: "tax_code", label: "ລະຫັດ VAT", type: "select", options: Store.all("taxcodes").map(t => ({ value: t.id, label: t.name })), col: "col-span-1" },
+      ...[["income_account", "ບັນຊີລາຍຮັບ", "Revenue"], ["cogs_account", "ບັນຊີຕົ້ນທຶນຂາຍ", "Expense"], ["inventory_account", "ບັນຊີສິນຄ້າຄົງເຫຼືອ", "Asset"]].map(([name, label, type]) => ({ name, label, type: "select", col: "col-span-1", options: Store.where("accounts", a => a.type === type && !a.is_header).map(a => ({ value: a.code, label: a.code + " " + a.name })) }))
+    ], it || { type: "stock", uom: "ອັນ", sell_price: 0, buy_price: 0, reorder_point: 0, tax_code: "tax_out10", income_account: Acc.PA("REV"), cogs_account: Acc.PA("COGS"), inventory_account: Acc.PA("INV") }, (d, close) => {
       if (!d.name) return UI.toast("ໃສ່ຊື່", "warn");
       if (it) Store.update("items", it.id, d);
       else Store.insert("items", Object.assign({ income_account: "4100", inventory_account: "1300", cogs_account: "5100", qty: 0, avg_cost: d.buy_price || 0, status: "active" }, d));
@@ -955,7 +956,7 @@
             <div class="mt-3"><button class="btn btn-ghost btn-sm" id="s-company">ຈັດການບໍລິສັດ (Multi-company)</button> <button class="btn btn-ghost btn-sm" id="s-users">ຜູ້ໃຊ້</button> <button class="btn btn-ghost btn-sm" id="s-api">API ເຊື່ອມແອັບອື່ນ</button> <button class="btn btn-ghost btn-sm" id="s-perms">Permissions Matrix</button></div>
           </div>
         </div>
-        <div class="card p-5"><h3 class="font-semibold mb-3">ລະຫັດ VAT <button class="btn btn-ghost btn-sm" id="s-tax">+ ເພີ່ມ</button> <button class="btn btn-ghost btn-sm" id="s-fx">ອັດຕາແລກປ່ຽນ</button> <button class="btn btn-ghost btn-sm" id="s-posting">ກົດການລົງບັນຊີ</button></h3>
+        <div class="card p-5"><h3 class="font-semibold mb-3">ລະຫັດ VAT <button class="btn btn-ghost btn-sm" id="s-tax">+ ເພີ່ມ</button> <button class="btn btn-ghost btn-sm" id="s-fx">ອັດຕາແລກປ່ຽນ</button> <button class="btn btn-ghost btn-sm" id="s-map">ຕາຕະລາງແມບປິ້ງ</button> <button class="btn btn-ghost btn-sm" id="s-posting">ກົດການລົງບັນຊີ</button></h3>
           <table class="data"><thead><tr><th>ຊື່</th><th class="num">ອັດຕາ%</th><th>ປະເພດ</th></tr></thead><tbody>
           ${taxes.map(t => `<tr><td>${E(t.name)}</td><td class="num">${t.rate}</td><td>${E(t.type)}</td></tr>`).join("")}</tbody></table>
           <h3 class="font-semibold mt-5 mb-2">ການເຊື່ອມຕໍ່ຂໍ້ມູນ</h3>
@@ -985,6 +986,7 @@
     };
     const stx = view().querySelector("#s-tax"); if (stx) stx.onclick = () => taxCodeModal(); const sfx = view().querySelector("#s-fx"); if (sfx) sfx.onclick = () => fxRateModal();
     const spo = view().querySelector("#s-posting"); if (spo) spo.onclick = () => postingRulesModal();
+    const sam = view().querySelector("#s-map"); if (sam) sam.onclick = () => accountMappingModal();
     const rsel = view().querySelector("#s-role"); if (rsel) { rsel.innerHTML = Object.keys(ROLE_PERMS).map(r => `<option value="${r}" ${r === currentRole() ? "selected" : ""}>${r}</option>`).join(""); rsel.onchange = () => { try { localStorage.setItem("laobooks_role", rsel.value); localStorage.removeItem("laobooks_user"); } catch (e) {} renderUserChip(); buildNav(); UI.toast("ບົດບາດ: " + rsel.value, "ok"); location.hash = "#/dashboard"; }; }
     const scmp = view().querySelector("#s-company"); if (scmp) scmp.onclick = () => companySwitchModal();
     const sapi = view().querySelector("#s-api"); if (sapi) sapi.onclick = () => ExtInUI.open();
@@ -2202,6 +2204,24 @@
     { label: "Stock ຍົກມາ (Opening)", dr: ["INV"], cr: ["OBE"] }
   ];
   function saveSplit(clean) { if (Store.get("settings", "posting_split")) Store.remove("settings", "posting_split"); Store.insert("settings", Object.assign({ id: "posting_split" }, clean)); }
+  // read-only overview of every posting rule (document → Dr / Cr), item exceptions and splits; printable
+  function accountMappingModal() {
+    const map = Object.assign({}, Acc.POSTING_DEFAULTS, Store.get("settings", "posting") || {}), meta = (typeof POSTING_META !== "undefined") ? POSTING_META : {};
+    const nm = c => c ? c + " " + (((Acc.acc(c) || {}).name) || "?") : "";
+    const side = roles => roles.length ? roles.map(r => `${E((meta[r] || [r])[0])}: <b>${E(nm(map[r]))}</b>`).join("<br>") : "—";
+    const rows = POSTING_TX2.map(t => `<tr><td>${E(t.label)}${t.note ? `<div class="hint">${E(t.note)}</div>` : ""}</td><td>${side(t.dr)}</td><td>${side(t.cr)}</td></tr>`).join("");
+    const ex = Store.all("items").filter(i => (i.income_account && i.income_account !== map.REV) || (i.cogs_account && i.cogs_account !== map.COGS) || (i.inventory_account && i.inventory_account !== map.INV));
+    const exRows = ex.map(i => `<tr><td>${E(i.name)}</td><td>${E(nm(i.income_account))}</td><td>${E(nm(i.cogs_account))}</td><td>${E(nm(i.inventory_account))}</td></tr>`).join("");
+    const sp = Object.assign({}, Store.get("settings", "posting_split") || {}); delete sp.id;
+    const spRows = Object.keys(sp).map(k => { const [code, sd] = k.split("|"); return `<tr><td>${E(nm(code))} (${sd})</td><td>${sp[k].map(c => E(nm(c.code || c))).join(", ")}</td></tr>`; }).join("");
+    const html = `<table class="data"><thead><tr><th>ເອກະສານ / ທຸລະກຳ</th><th>Dr</th><th>Cr</th></tr></thead><tbody>${rows}</tbody></table>
+      <h4 class="font-semibold mt-4 mb-2 text-sm">ສິນຄ້າທີ່ມີບັນຊີສະເພາະ (ຕ່າງຈາກກົດຫຼັກ) — ${ex.length}</h4>
+      ${exRows ? `<table class="data"><thead><tr><th>ສິນຄ້າ</th><th>ລາຍຮັບ</th><th>ຕົ້ນທຶນ</th><th>ສິນຄ້າຄົງເຫຼືອ</th></tr></thead><tbody>${exRows}</tbody></table>` : '<p class="hint">ບໍ່ມີ — ທຸກສິນຄ້າໃຊ້ກົດຫຼັກ (ຕັ້ງໃນຟອມສິນຄ້າ)</p>'}
+      ${spRows ? `<h4 class="font-semibold mt-4 mb-2 text-sm">ແຍກບັນຊີ (Split)</h4><table class="data"><tbody>${spRows}</tbody></table>` : ""}
+      <p class="hint mt-3">ຄວບຄຸມ: Dr = Cr ບັງຄັບທຸກ Journal · ຫ້າມລົງບັນຊີກ່ອນວັນລັອກ · ແກ້ໄຂ = Reverse ບໍ່ແມ່ນລຶບ · ຜູ້ລົງບັນຊີບັນທຶກທຸກ Journal ແລະ Audit Log</p>`;
+    UI.modal("ຕາຕະລາງແມບປິ້ງບັນຊີ", `<div class="mb-3"><button class="btn btn-ghost btn-sm" id="am-print">ພິມ</button></div>${html}`, { wide: true });
+    const pb = document.getElementById("am-print"); if (pb) pb.onclick = () => printHTML("Account mapping", `<h2>${E((Store.get("settings", "company") || {}).name || "")}</h2><h3>ຕາຕະລາງແມບປິ້ງບັນຊີ</h3>${html}`);
+  }
   function postingRulesModal() {
     const accts = Store.where("accounts", a => !a.is_header);
     const map = Object.assign({}, Acc.POSTING_DEFAULTS, Store.get("settings", "posting") || {});
@@ -3839,7 +3859,7 @@
 
   async function init() {
     document.addEventListener("click", e => document.querySelectorAll("details.more-menu[open]").forEach(d => { if (!d.contains(e.target) || e.target.closest(".more-pop .btn")) d.removeAttribute("open"); }));
-    window.AppCtx = { currentUserId: () => (currentUser() || {}).id || "", currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
+    window.AppCtx = { userLabel: () => { const u = currentUser(); return u ? u.name : currentRole(); }, currentUserId: () => (currentUser() || {}).id || "", currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
     installGates(); buildNav(); setupSearch(); renderUserChip();
     const ub = document.getElementById("userBtn"); if (ub) ub.onclick = userSwitchModal;
     document.getElementById("menuBtn").onclick = () => document.getElementById("sidebar").classList.toggle("-translate-x-full");
