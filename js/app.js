@@ -3900,6 +3900,7 @@
       view().innerHTML = UI.pageHead("ບໍ່ມີສິດເຂົ້າ", "", "") + `<div class="card p-10 text-center text-slate-500">ບົດບາດ <b>${E(currentRole())}</b> ບໍ່ມີສິດເຂົ້າໂມດູນນີ້<div class="mt-4"><a class="btn btn-primary" href="#/dashboard">ກັບໜ້າຫຼັກ</a></div></div>`;
       return;
     }
+    view().dataset.route = route;
     (ROUTES[route] || dashboard)();
     window.scrollTo(0, 0);
   }
