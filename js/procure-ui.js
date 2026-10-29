@@ -277,11 +277,11 @@
       on("#nx-print", () => window.AppCtx.poPrint && window.AppCtx.poPrint(s.po));
     }
     if (st === "receiving") {
-      on("#nx-go", () => act(() => {
+      on("#nx-go", () => {
         const receipt = Array.from(view().querySelectorAll("[data-rcv]")).map(el => ({ po_line_id: el.dataset.rcv, qty: Number(el.value) || 0 }));
-        const g = Procure.receive(c.id, r, { date: q("#nx-date").value, receipt });
-        UI.toast(g.number + " ລົງບັນຊີແລ້ວ " + M(g.total), "ok");
-      }));
+        GateUI.send("GRN", { case_id: c.id, role: r, date: q("#nx-date").value, receipt, note: "" }, { key: "GRN:" + c.id, done: "ຮັບເຄື່ອງ ແລະ ລົງບັນຊີແລ້ວ ✓" });
+        render();
+      });
       on("#nx-short", () => {
         UI.modal("ປິດການຮັບ (ຮັບບໍ່ຄົບ)", `<p class="text-sm mb-2">ສ່ວນທີ່ຍັງບໍ່ໄດ້ຮັບ ຈະບໍ່ຖືກບິນ ແລະ ບໍ່ຈ່າຍ.</p><textarea class="input" id="sc-note" rows="2" placeholder="ເຫດຜົນ *"></textarea>
           <div class="flex justify-end gap-2 mt-3"><button class="btn btn-ghost" data-x>ຍົກເລີກ</button><button class="btn btn-primary" id="sc-go">ປິດການຮັບ</button></div>`,
@@ -302,7 +302,7 @@
       });
     }
     if (st === "paying") {
-      on("#nx-go", () => act(() => Procure.pay(c.id, r, { bank_id: q("#nx-bank").value, amount: Number(q("#nx-amt").value), date: q("#nx-date").value }), "ຈ່າຍເງິນແລ້ວ"));
+      on("#nx-go", () => { GateUI.send("PAYC", { case_id: c.id, role: r, bank_id: q("#nx-bank").value, amount: Number(q("#nx-amt").value), date: q("#nx-date").value }, { key: "PAYC:" + c.id, done: "ຈ່າຍເງິນແລ້ວ ✓" }); render(); });
     }
   }
 

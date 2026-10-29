@@ -2,6 +2,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { freshApp } = require("./helpers");
+// the month-end engine posts by itself in these tests: the approval gate for depreciation is switched off here (gate.test.js covers it ON)
+const fresh = async () => { const c = await freshApp(); c.Gate.setOn("DEPR", false); return c; };
 
 function balanced(Acc, Store) {
   let dr = 0, cr = 0;
@@ -12,7 +14,7 @@ function balanced(Acc, Store) {
 const asset = (S, o = {}) => S.insert("assets", Object.assign({ name: "Truck", category: "Vehicle", cost: 1200000, life_months: 12, date: "2026-01-15", method: "straight", acc_dep: 0, status: "active" }, o));
 
 test("depreciation: one JE per completed month, never twice", async () => {
-  const { Autopost, Acc, Store } = await freshApp();
+  const { Autopost, Acc, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01" });
   const a = asset(Store);
   const r1 = Autopost.run("2026-04-10");            // Jan, Feb, Mar are complete; April is not
@@ -30,7 +32,7 @@ test("depreciation: one JE per completed month, never twice", async () => {
 });
 
 test("start period: nothing before it is back-filled", async () => {
-  const { Autopost, Store } = await freshApp();
+  const { Autopost, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-03" });
   asset(Store);
   const r = Autopost.run("2026-04-10");
@@ -38,7 +40,7 @@ test("start period: nothing before it is back-filled", async () => {
 });
 
 test("depreciation never exceeds cost and an asset acquired later starts later", async () => {
-  const { Autopost, Store } = await freshApp();
+  const { Autopost, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01" });
   const small = asset(Store, { cost: 200000, life_months: 2, date: "2026-01-02" });
   const late = asset(Store, { cost: 600000, life_months: 6, date: "2026-03-20" });
@@ -50,7 +52,7 @@ test("depreciation never exceeds cost and an asset acquired later starts later",
 });
 
 test("locked periods are skipped and reported, open ones still post", async () => {
-  const { Autopost, Store } = await freshApp();
+  const { Autopost, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01" });
   asset(Store);
   Store.update("settings", "company", { lock_date: "2026-02-28" });
@@ -61,7 +63,7 @@ test("locked periods are skipped and reported, open ones still post", async () =
 });
 
 test("a manual run and the engine cannot double-post the same month", async () => {
-  const { Autopost, Store } = await freshApp();
+  const { Autopost, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-04" });
   const a = asset(Store);
   Autopost.manual("DEPR", "", "2026-04-10");                    // someone clicks the button mid-April
@@ -71,7 +73,7 @@ test("a manual run and the engine cannot double-post the same month", async () =
 });
 
 test("prepaid: amortises monthly from the capitalise month and stops at the total", async () => {
-  const { Autopost, Acc, Store } = await freshApp();
+  const { Autopost, Acc, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01" });
   const pp = Store.insert("prepaids", { name: "Insurance", total: 120000, periods: 12, amortised: 0, status: "new" });
   Acc.capitalisePrepaid(pp, Store.all("bank_accounts")[0].id, "2026-01-05");
@@ -87,7 +89,7 @@ test("prepaid: amortises monthly from the capitalise month and stops at the tota
 });
 
 test("deferred revenue: recognised monthly", async () => {
-  const { Autopost, Acc, Store } = await freshApp();
+  const { Autopost, Acc, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01" });
   const df = Store.insert("deferreds", { name: "Annual fee", total: 60000, periods: 6, recognised: 0, status: "new" });
   Acc.bookDeferred(df, Store.all("bank_accounts")[0].id, "2026-01-03");
@@ -97,7 +99,7 @@ test("deferred revenue: recognised monthly", async () => {
 });
 
 test("recurring journal: only auto ones, on their day, once per month", async () => {
-  const { Autopost, Acc, Store } = await freshApp();
+  const { Autopost, Acc, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01" });
   const rent = Store.insert("recurring", { name: "Rent", amount: 5000000, account: "5200", auto: true, day: 5 });
   Store.insert("recurring", { name: "Manual only", amount: 999, account: "5200" });
@@ -112,7 +114,7 @@ test("recurring journal: only auto ones, on their day, once per month", async ()
 });
 
 test("recurring invoice: issued and posted automatically", async () => {
-  const { Autopost, Acc, Store } = await freshApp();
+  const { Autopost, Acc, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-02" });
   const item = Store.where("items", i => i.type === "service")[0];
   Store.insert("recurring", { rtype: "invoice", name: "Support", customer_id: Store.all("customers")[0].id, item_id: item.id, qty: 1, price: 1000000, tax_code: "tax_0", auto: true, day: 1 });
@@ -124,7 +126,7 @@ test("recurring invoice: issued and posted automatically", async () => {
 });
 
 test("a failure is reported, leaves no orphan, and does not stop other tasks", async () => {
-  const { Autopost, Acc, Store } = await freshApp();
+  const { Autopost, Acc, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-03" });
   asset(Store, { date: "2026-03-01" });
   // recurring invoice pointing to a deleted item → postInvoice throws "no lines/total"
@@ -151,7 +153,7 @@ function postBill(S, A, date, price) {
 }
 
 test("accrual: posted at month-end and reversed on the 1st, in ONE run", async () => {
-  const { Autopost, Acc, Store } = await freshApp();
+  const { Autopost, Acc, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01" });
   Store.insert("accruals", { name: "Electricity", account: "5220", amount: 1000000, active: true });
   const r = Autopost.run("2026-02-15");                      // Jan accrual + its Feb-1 reversal
@@ -165,7 +167,7 @@ test("accrual: posted at month-end and reversed on the 1st, in ONE run", async (
 });
 
 test("accrual reversal waits for the 1st of the next month", async () => {
-  const { Autopost, Acc, Store } = await freshApp();
+  const { Autopost, Acc, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01" });
   Store.insert("accruals", { name: "Interest", account: "5200", amount: 500000, active: true });
   Autopost.run("2026-01-31");                                  // Jan just ended: accrual only
@@ -173,7 +175,7 @@ test("accrual reversal waits for the 1st of the next month", async () => {
 });
 
 test("VAT close (opt-in): the month's output − input moves to net VAT payable", async () => {
-  const { Autopost, Acc, Store } = await freshApp();
+  const { Autopost, Acc, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01", vat_close: true });
   postInv(Store, Acc, "2026-01-10", 10, 35000);              // output VAT 35,000
   postBill(Store, Acc, "2026-01-12", 200000);                // input VAT 20,000
@@ -187,7 +189,7 @@ test("VAT close (opt-in): the month's output − input moves to net VAT payable"
 });
 
 test("profit-tax provision (opt-in): tops up to YTD profit × rate, no double counting", async () => {
-  const { Autopost, Acc, Store } = await freshApp();
+  const { Autopost, Acc, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01", ptax_rate: 20 });
   postInv(Store, Acc, "2026-01-10", 10, 35000);              // profit 350,000 − 220,000 = 130,000
   Autopost.run("2026-02-05");
@@ -201,7 +203,7 @@ test("profit-tax provision (opt-in): tops up to YTD profit × rate, no double co
 });
 
 test("auto-lock (opt-in): locks last month N days after it ends, but not while something failed", async () => {
-  const { Autopost, Store } = await freshApp();
+  const { Autopost, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01", autolock_days: 5 });
   Autopost.run("2026-02-03");
   assert.equal((Store.get("settings", "company") || {}).lock_date || "", "", "only 3 days after month-end");
@@ -211,7 +213,7 @@ test("auto-lock (opt-in): locks last month N days after it ends, but not while s
 });
 
 test("auto-lock does not lock a month that still has a failing task", async () => {
-  const { Autopost, Store } = await freshApp();
+  const { Autopost, Store } = await fresh();
   Autopost.setConfig({ enabled: true, start: "2026-01", autolock_days: 5 });
   Store.insert("recurring", { rtype: "invoice", name: "Broken", customer_id: Store.all("customers")[0].id, item_id: "gone", qty: 0, price: 0, auto: true, day: 3 });
   const r = Autopost.run("2026-02-10");

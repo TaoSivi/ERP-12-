@@ -219,7 +219,13 @@
         const m = Math.min(Number(a.cost) / Number(a.life_months || 1), Number(a.cost) - sim[a.id]);
         if (m > 0) { amt += m; if (!isLocked(monthEnd(p))) sim[a.id] += m; }
       });
-      if (amt > 0) push("DEPR", "", "ຄ່າເສື່ອມລາຄາ " + p, p, monthEnd(p), amt, () => doDepr(p, monthEnd(p)));
+      if (amt > 0) push("DEPR", "", "ຄ່າເສື່ອມລາຄາ " + p, p, monthEnd(p), amt, () => {
+        if (window.Gate && Gate.isOn("DEPR")) { // wait for the approver; the period cannot auto-lock until it is posted
+          try { Gate.submit("DEPR", { period: p, date: monthEnd(p), amount: round(amt) }, "system", { key: "DEPR:" + p }); } catch (e) { /* already waiting */ }
+          return null;
+        }
+        return doDepr(p, monthEnd(p));
+      });
     });
 
     // prepaid + deferred – fixed amount per period until the total is used up

@@ -38,27 +38,37 @@
     document.getElementById("sd-draft").onclick = () => save(false); document.getElementById("sd-send").onclick = () => save(true);
   }
 
+  // the document page (same layout as every other approval document)
+  function modelOf(d) {
+    const colHead = d.type === "ISS" ? "ຈຳນວນຈ່າຍ" : d.type === "ADJ" ? "ປັບ (+/−)" : "ນັບໄດ້ (ລະບົບ)";
+    const st = d.chain && d.chain.length ? Approval.chainState(d, "STOCK", d.value) : null, first = (d.log || []).find(x => x.action === "submit" || x.action === "create");
+    const steps = st ? st.steps.map((s, i) => ({ label: Approval.stepLabel(st.chain[i]), need: s.need, signed: st.done.filter(x => x.step === i), state: d.status === "rejected" && i === st.step ? "bad" : st.complete || i < st.step ? "done" : i === st.step && d.status === "approval" ? "cur" : "wait" })) : [];
+    let journal = null, journalTitle = "ການລົງບັນຊີ";
+    if (d.status === "posted") journal = Store.where("journal_entries", j => j.source_type === "STOCK_ADJ" && j.source_id === d.number).map(j => ({ memo: j.number + " · " + j.memo, lines: Store.where("journal_lines", l => l.je_id === j.id).map(l => ({ account: l.account, name: l.account_name, debit: l.debit, credit: l.credit })) }));
+    else if (d.status === "approval") { journalTitle = "ການລົງບັນຊີທີ່ຈະເກີດຂຶ້ນ ເມື່ອອະນຸມັດຄົບ (ຈຳລອງ)"; const sim = PostMon.simulate(() => StockDoc.post(d.id)); journal = sim.entries.map(j => ({ memo: j.memo, lines: j.lines })); if (!sim.ok) journalTitle += " — ⚠ " + sim.error; }
+    const me = role(), chk = d.status === "approval" ? StockDoc.check(d, me) : null, mine = d.requester_role === me || ["Admin", "Manager"].indexOf(me) >= 0;
+    let actions = "";
+    if (d.status === "draft") actions += '<button class="btn btn-primary btn-lg btn-block" id="dv-submit">ສົ່ງອະນຸມັດ</button>';
+    if (chk && chk.ok) actions += `<button class="btn btn-ok btn-lg btn-block" id="dv-ok">✓ ອະນຸມັດ (ຂັ້ນ ${st.step + 1}/${st.chain.length})</button><button class="btn btn-danger btn-lg btn-block" id="dv-no">✕ ບໍ່ອະນຸມັດ</button>`;
+    if ((d.status === "draft" || d.status === "approval") && mine) actions += '<button class="btn btn-ghost btn-block" id="dv-cancel">ຍົກເລີກເອກະສານ</button>';
+    actions += '<button class="btn btn-ghost btn-block" id="dv-print">🖨 ພິມ</button>';
+    const stepper = [{ label: "ສ້າງ", state: "done" }, { label: "ສົ່ງອະນຸມັດ", state: d.status === "draft" ? "cur" : "done" }].concat(steps.map(s => ({ label: "ອະນຸມັດ: " + s.label, state: s.state }))).concat([{ label: "ຕັດສະຕັອກ & ລົງບັນຊີ", state: d.status === "posted" ? "done" : "wait" }]);
+    return { titles: [StockDoc.LABEL[d.type], d.type === "ISS" ? "GOODS ISSUE NOTE" : d.type === "ADJ" ? "STOCK ADJUSTMENT" : "STOCK COUNT SHEET"], number: d.number, date: d.date, status: { label: StockDoc.STAGE[d.status], tone: d.status === "posted" ? "ok" : d.status === "approval" ? "wait" : d.status === "rejected" ? "bad" : "draft" }, stepper,
+      meta: [["ພະແນກ / ຜູ້ຮັບ", d.dept], ["ເຫດຜົນ", d.reason], ["ຜູ້ຂໍ", d.requester_name ? d.requester_name + " (" + d.requester_role + ")" : d.requester_role]], cols: ["ສິນຄ້າ", colHead], rows: d.lines.map(l => [itemName(l.item_id), d.type === "ISS" ? String(l.qty) : d.type === "ADJ" ? (l.delta > 0 ? "+" : "") + l.delta : l.counted + " (" + l.system + ")"]),
+      totals: [["ມູນຄ່າ", M(StockDoc.valueOf(d)), true]], journal, journalTitle, steps, requester: d.status === "draft" ? null : { name: d.requester_name, role: d.requester_role, at: first && first.at }, log: d.log || [],
+      notice: chk && !chk.ok ? E(chk.why) : d.status === "draft" ? "ກົດ ສົ່ງອະນຸມັດ ເມື່ອກວດລາຍການແລ້ວ" : "", actions, back: "ລາຍການເອກະສານສາງ", onBack: list };
+  }
   function detail(id) {
-    const d = StockDoc.get(id), me = role(), chk = d.status === "approval" ? StockDoc.check(d, me) : null;
-    const steps = (d.status === "approval" || d.status === "posted") && d.chain ? Approval.chainState(d, "STOCK", d.value) : null;
-    const colHead = d.type === "ISS" ? "ຈ່າຍ" : d.type === "ADJ" ? "ປັບ" : "ນັບໄດ້ (ລະບົບ)";
-    UI.modal(d.number + " · " + StockDoc.LABEL[d.type], `<div class="hint mb-2">${E(d.date)} · ${E(d.reason)}${d.dept ? " · " + E(d.dept) : ""} · ຜູ້ຂໍ ${E(d.requester_name || d.requester_role)} · <span class="chip ${CHIP[d.status]}">${E(StockDoc.STAGE[d.status])}</span></div>
-      <table class="data mb-3"><thead><tr><th>ສິນຄ້າ</th><th class="num">${colHead}</th></tr></thead><tbody>${d.lines.map(l => `<tr><td>${E(itemName(l.item_id))}</td><td class="num">${d.type === "ISS" ? l.qty : d.type === "ADJ" ? (l.delta > 0 ? "+" : "") + l.delta : l.counted + " (" + l.system + ")"}</td></tr>`).join("")}</tbody></table>
-      <p class="mb-2">ມູນຄ່າ: <b>${M(StockDoc.valueOf(d))}</b></p>
-      ${steps ? `<div class="hint mb-2">ຂັ້ນອະນຸມັດ: ${Approval.chainLabels(steps.chain).map((l, i) => (i < steps.step ? "✓ " : i === steps.step ? "▶ " : "") + E(l)).join(" → ")}</div>` : ""}
-      ${chk && !chk.ok ? `<p class="hint mb-2">${E(chk.why)}</p>` : ""}
-      <div class="flex flex-wrap gap-2 mt-3">
-        ${d.status === "draft" ? '<button class="btn btn-primary" id="sd-submit">ສົ່ງອະນຸມັດ</button>' : ""}
-        ${chk && chk.ok ? '<button class="btn btn-ok" id="sd-ok">✓ ອະນຸມັດ</button><button class="btn btn-danger" id="sd-no">✕ ປະຕິເສດ</button>' : ""}
-        ${d.status === "draft" || d.status === "approval" ? '<button class="btn btn-ghost" id="sd-cancel">ຍົກເລີກ</button>' : ""}
-        <button class="btn btn-ghost" id="sd-print">ພິມ</button><button class="btn btn-ghost" id="sd-back">ກັບລາຍການ</button></div>`, { wide: true });
-    const on = (s, f) => { const b = document.getElementById(s); if (b) b.onclick = f; };
-    const again = () => detail(id);
-    on("sd-submit", () => act(() => StockDoc.submit(id, me), "ສົ່ງອະນຸມັດແລ້ວ", again));
-    on("sd-ok", () => act(() => StockDoc.approve(id, me), "ອະນຸມັດແລ້ວ", again));
-    on("sd-no", () => { const n = prompt("ເຫດຜົນທີ່ປະຕິເສດ"); if (n != null) act(() => StockDoc.reject(id, me, n), "ປະຕິເສດແລ້ວ", again); });
-    on("sd-cancel", () => UI.confirmDialog("ຍົກເລີກ " + d.number + "?", () => act(() => StockDoc.cancel(id, me, ""), "ຍົກເລີກແລ້ວ", again)));
-    on("sd-print", () => print(StockDoc.get(id))); on("sd-back", list);
+    const d = StockDoc.get(id), me = role(), again = () => detail(id);
+    DocView.open(modelOf(d), (bd, close) => {
+      const on = (s, f) => { const b = bd.querySelector(s); if (b) b.onclick = () => { try { f(); } catch (e) { UI.toast(e.message, "err"); } }; };
+      const redo = ok => { if (ok) UI.toast(ok, "ok"); close(); again(); };
+      on("#dv-submit", () => { StockDoc.submit(id, me); redo("ສົ່ງອະນຸມັດແລ້ວ"); });
+      on("#dv-ok", () => { const r = StockDoc.approve(id, me); redo(r.status === "posted" ? "ອະນຸມັດຄົບ — ຕັດສະຕັອກ ແລະ ລົງບັນຊີແລ້ວ ✓" : "ອະນຸມັດແລ້ວ — ລໍຜູ້ອະນຸມັດຂັ້ນຕໍ່ໄປ"); });
+      on("#dv-no", () => { const n = prompt("ເຫດຜົນທີ່ບໍ່ອະນຸມັດ"); if (n != null) { StockDoc.reject(id, me, n); redo("ບໍ່ອະນຸມັດແລ້ວ"); } });
+      on("#dv-cancel", () => UI.confirmDialog("ຍົກເລີກ " + d.number + "?", () => { try { StockDoc.cancel(id, me, ""); redo("ຍົກເລີກແລ້ວ"); } catch (e) { UI.toast(e.message, "err"); } }));
+      on("#dv-print", () => DocView.print(modelOf(StockDoc.get(id))));
+    });
   }
 
   function print(d) {

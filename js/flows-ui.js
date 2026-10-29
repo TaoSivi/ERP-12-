@@ -307,13 +307,15 @@
     let inherit = scope !== "*" && !own;
     let tiers = JSON.parse(JSON.stringify((scope === "*" ? m.tiers : (m.by_type[scope] || m.tiers))));
     const users = Store.where("users", u => (u.status || "active") === "active");
-    const scopes = [["*", "ທຸກປະເພດ (ຄ່າເລີ່ມຕົ້ນ)"]].concat(Object.keys(Flows.TYPES).map(k => [k, Flows.TYPES[k].label])).concat([["PURCHASE", "ຂໍຊື້ (PR)"]]);
+    const scopes = [["*", "ທຸກປະເພດ (ຄ່າເລີ່ມຕົ້ນ)"]].concat(Object.keys(Flows.TYPES).map(k => [k, Flows.TYPES[k].label])).concat([["PURCHASE", "ຂໍຊື້ (PR)"], ["STOCK", "ເອກະສານສາງ (ຈ່າຍສິນຄ້າ / ປັບປຸງ / ກວດນັບ)"]]).concat(Gate.types().map(x => [x.type, x.label]));
+    const gateType = scope !== "*" && Gate.types().some(x => x.type === scope);
     const fs = Flows.settings();
     const stepOf = e => Approval.normStep(e);
     UI.modal("✍️ ຂັ້ນອະນຸມັດ", `<p class="hint mb-3">ແຕ່ລະຂັ້ນ: ເລືອກບົດບາດ ແລະ/ຫຼື ຜູ້ໃຊ້ທີ່ລະບຸຊື່ (ຄົນໃດຄົນໜຶ່ງໃນລາຍຊື່ເຊັນໄດ້) ແລະ ກຳນົດວ່າຕ້ອງເຊັນກີ່ຄົນ. ຜູ້ຂໍເຊັນເອງບໍ່ໄດ້ ແລະ ຄົນດຽວເຊັນສອງຂັ້ນບໍ່ໄດ້. ການລະບຸຊື່ຄົນໃຊ້ໄດ້ເມື່ອຜູ້ໃຊ້ເຂົ້າລະບົບເປັນຜູ້ໃຊ້ (ປຸ່ມຊື່ມຸມຂວາເທິງ).</p>
       <div class="flex flex-wrap items-center gap-2 mb-3"><label class="field" style="margin:0">ປະເພດຄຳຂໍ</label>
         <select class="input" id="mx-scope" style="width:auto">${scopes.map(([k, l]) => `<option value="${k}" ${k === scope ? "selected" : ""}>${E(l)}${k !== "*" && m.by_type[k] ? " *" : ""}</option>`).join("")}</select>
         ${scope !== "*" ? `<label class="flex items-center gap-2 text-sm"><input type="checkbox" id="mx-inherit" ${inherit ? "checked" : ""} ${can ? "" : "disabled"}> ໃຊ້ຂັ້ນຄ່າເລີ່ມຕົ້ນ</label>` : ""}<span class="hint">* = ມີຂັ້ນຂອງຕົນເອງ</span></div>
+      ${gateType ? `<label class="flex items-center gap-2 text-sm mb-3 p-3 rounded-lg" style="background:#f2f9f8"><input type="checkbox" id="mx-gate" ${Gate.isOn(scope) ? "checked" : ""} ${can ? "" : "disabled"}> <b>ຕ້ອງອະນຸມັດກ່ອນລົງບັນຊີ</b> <span class="hint">ປິດ = ກົດແລ້ວລົງບັນຊີທັນທີ (ຂັ້ນຂ້າງລຸ່ມໃຊ້ຕອນເປີດ)</span></label>` : ""}
       <div id="mx-rows"></div>
       ${can ? `<button class="btn btn-ghost btn-sm mt-2" id="mx-add">＋ ເພີ່ມຂັ້ນວົງເງິນ</button>` : ""}
       ${scope === "*" ? `<label class="flex items-center gap-2 text-sm mt-4"><input type="checkbox" id="mx-docs" ${fs.require_docs ? "checked" : ""} ${can ? "" : "disabled"}> ບັງຄັບເອກະສານແນບກ່ອນສົ່ງ (ເງິນສຳຮອງ / ເຄລຍ / ຂໍເບີກຈ່າຍ) — ປະເພດໃໝ່ ບັງຄັບສະເໝີ</label>
@@ -357,6 +359,7 @@
         q("#mx-add").onclick = () => { read(); tiers.push({ max: null, chain: ["Manager"] }); draw(); };
         q("#mx-save").onclick = () => {
           try {
+            if (gateType) Gate.setOn(scope, q("#mx-gate").checked);
             if (scope !== "*" && q("#mx-inherit").checked) { Approval.setTypeTiers(scope, null); close(); UI.toast("ໃຊ້ຂັ້ນຄ່າເລີ່ມຕົ້ນ", "ok"); return; }
             read();
             tiers.forEach(t => { if (!t.chain.length) throw new Error("ທຸກວົງເງິນຕ້ອງມີຢ່າງໜ້ອຍ 1 ຂັ້ນ"); });
