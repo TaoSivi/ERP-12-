@@ -188,9 +188,11 @@
         <div><label class="field">ວັນທີ</label><input class="input" id="d-date" type="date" value="${h.date || UI.today()}"/></div>
         <div><label class="field">ກຳນົດຈ່າຍ (ວັນ)</label><input class="input" id="d-terms" type="number" value="${h.terms != null ? h.terms : 30}"/></div>
         <div><label class="field">ໝາຍເຫດ</label><input class="input" id="d-note" value="${E(h.note || "")}"/></div>
+        <details class="col-span-2" ${h.project_id || h.cc_id || Number(h.retention_pct) ? "open" : ""}><summary class="cursor-pointer text-sm font-semibold" style="color:#0A7E7A">ຕົວເລືອກເພີ່ມເຕີມ (ໂຄງການ, Cost Centre, Retention) — ບໍ່ຈຳເປັນ</summary><div class="grid grid-cols-2 gap-3 mt-3">
         <div><label class="field">ໂຄງການ (ທາງເລືອກ)</label><select class="input" id="d-project"><option value="">— ບໍ່ມີ —</option>${Store.all("projects").map(p => `<option value="${p.id}" ${p.id === h.project_id ? "selected" : ""}>${E(p.name)}</option>`).join("")}</select></div>
         <div><label class="field">Cost Centre (ທາງເລືອກ)</label><select class="input" id="d-cc"><option value="">— ບໍ່ມີ —</option>${Store.all("cost_centres").map(c => `<option value="${c.id}" ${c.id === h.cc_id ? "selected" : ""}>${E(c.name)}</option>`).join("")}</select></div>
-        <div><label class="field">Retention % (ກໍ່ສ້າງ)</label><input class="input" id="d-ret" type="number" value="${h.retention_pct || 0}"/></div>
+        <div><label class="field">ຫັກຄ້ຳປະກັນ % (Retention — ງານກໍ່ສ້າງ)</label><input class="input" id="d-ret" type="number" value="${h.retention_pct || 0}"/></div>
+        </div></details>
       </div>
       <div class="border border-slate-200 rounded-lg overflow-hidden">
         <table class="data"><thead><tr>
@@ -267,6 +269,16 @@
   }
 
   /* ================= 01 · DASHBOARD ================= */
+  // a brand-new company: three plain steps instead of "nothing to do"
+  function firstStepsCard() {
+    if (Store.all("invoices").length || Store.all("bills").length) return "";
+    const step = (n, done, title, hint, btn) => `<div class="flex items-center gap-3 py-2"><span class="count ${done ? "" : "zero"}">${done ? "✓" : n}</span><div class="flex-1"><b>${title}</b><div class="hint">${hint}</div></div>${btn}</div>`;
+    return `<div class="card p-5 mb-5"><div class="section-title">ເລີ່ມໃຊ້ໃນ 3 ຂັ້ນ</div>
+      ${step(1, Store.all("customers").length > 0, "ໃສ່ລູກຄ້າ", "ໃຜຊື້ເຄື່ອງເຮົາ — ຕ້ອງມີກ່ອນອອກໃບ", '<button class="btn btn-ghost btn-sm" data-goto="#/customers">ໄປໜ້າລູກຄ້າ</button>')}
+      ${step(2, Store.all("items").length > 0, "ໃສ່ສິນຄ້າ ຫຼື ບໍລິການ", "ສິ່ງທີ່ເຮົາຂາຍ ພ້ອມລາຄາ", '<button class="btn btn-ghost btn-sm" data-goto="#/inventory">ໄປໜ້າສິນຄ້າ</button>')}
+      ${step(3, false, "ອອກໃບແຈ້ງໜີ້ (Invoice) ໃບທຳອິດ", "ກົດ → ເລືອກລູກຄ້າ → ບັນທຶກ → ຢືນຢັນ & ລົງບັນຊີ → ຮັບເງິນເມື່ອລູກຄ້າຈ່າຍ", '<button class="btn btn-primary btn-sm" data-tool="invoice">ອອກ Invoice</button>')}
+    </div>`;
+  }
   function dashboard() {
     const pl = Acc.plData();
     const ar = Acc.arOutstanding(), ap = Acc.apOutstanding(), cash = Acc.cashBalance();
@@ -275,20 +287,20 @@
     const low = Store.where("items", i => i.type === "stock" && Number(i.qty) <= Number(i.reorder_point));
     const recentJe = Store.all("journal_entries").sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "")).slice(0, 6);
 
-    view().innerHTML = UI.pageHead("ໜ້າຫຼັກ", "ວັນທີ " + UI.today(), "") + actionCenter() +
+    view().innerHTML = UI.pageHead("ໜ້າຫຼັກ", "ວັນທີ " + UI.today(), "") + firstStepsCard() + actionCenter() +
       `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        ${UI.kpi("ເງິນສົດ & ທະນາຄານ", M(cash), "", "#15803d")}
-        ${UI.kpi("ລູກຄ້າຕ້ອງໜີ້ (AR)", M(ar), "", "#1d4ed8")}
-        ${UI.kpi("ພວກເຮົາຕ້ອງໜີ້ (AP)", M(ap), "", "#b45309")}
-        ${UI.kpi("VAT ຕ້ອງຍືນ", M(vatPay), "Output − Input", "#6d28d9")}
+        ${UI.kpi("ເງິນສົດ & ທະນາຄານ", M(cash), "ເງິນທີ່ມີຢູ່ຕອນນີ້", "#15803d")}
+        ${UI.kpi("ລູກຄ້າຄ້າງຈ່າຍເຮົາ (AR)", M(ar), "ເງິນທີ່ລໍຖ້າຮັບຈາກລູກຄ້າ", "#1d4ed8")}
+        ${UI.kpi("ເຮົາຄ້າງຈ່າຍຜູ້ສະໜອງ (AP)", M(ap), "ເງິນທີ່ຕ້ອງຈ່າຍຜູ້ສະໜອງ", "#b45309")}
+        ${UI.kpi("VAT ຕ້ອງຍື່ນລັດ", M(vatPay), "VAT ຂາຍ − VAT ຊື້", "#6d28d9")}
       </div>
       ${fableChartsCard()}
       <div class="grid lg:grid-cols-3 gap-4 mb-5">
         <div class="card p-5 lg:col-span-2">
-          <h3 class="font-semibold mb-3">ກຳໄລ-ຂາດທຶນ (YTD)</h3>
+          <h3 class="font-semibold mb-3">ກຳໄລ-ຂາດທຶນ (ຕັ້ງແຕ່ຕົ້ນປີ)</h3>
           <div class="space-y-2 text-sm">
             ${plRow("ລາຍຮັບ", pl.revenue)}
-            ${plRow("ຕົ້ນທຶນຂາຍ (COGS)", -pl.cogs)}
+            ${plRow("ຕົ້ນທຶນສິນຄ້າທີ່ຂາຍ (COGS)", -pl.cogs)}
             ${plRow("ກຳໄລຂັ້ນຕົ້ນ", pl.grossProfit, true)}
             ${plRow("ຄ່າໃຊ້ຈ່າຍ", -pl.expense)}
             ${plRow("ກຳໄລສຸດທິ", pl.net, true, pl.net >= 0 ? "#15803d" : "#b91c1c")}
@@ -386,9 +398,9 @@
   }
   function docNextCell(coll, r, b) {
     const s = r.status;
-    if (s === "draft") return `<button class="btn btn-primary btn-sm" data-view="${r.id}">ກວດ & Post →</button>`;
+    if (s === "draft") return `<button class="btn btn-primary btn-sm" data-view="${r.id}">ກວດ & ລົງບັນຊີ →</button>`;
     if (s === "pending") return canApprove() ? `<button class="btn btn-ok btn-sm" data-view="${r.id}">ອະນຸມັດ →</button>` : `<span class="hint">ລໍ Manager/Admin</span>`;
-    if (s === "posted" || s === "partial") return `<button class="btn ${b.overdue(r) ? "btn-danger" : "btn-primary"} btn-sm" data-view="${r.id}">${b.overdue(r) ? "⏰ " : ""}${coll === "bills" ? "ຈ່າຍເງິນ" : "ຮັບເງິນ"} →</button>`;
+    if (s === "posted" || s === "partial") return `<button class="btn ${b.overdue(r) ? "btn-danger" : "btn-primary"} btn-sm" data-pay="${r.id}">${b.overdue(r) ? "⏰ " : ""}${coll === "bills" ? "ຈ່າຍເງິນ" : "ຮັບເງິນ"} →</button>`;
     return `<button class="btn btn-ghost btn-sm" data-view="${r.id}">ເບິ່ງ</button>`;
   }
   function bindDocTabs(coll, rerender) {
@@ -416,6 +428,7 @@
     view().querySelector("#recinv").onclick = () => recurringInvoiceModal();
     view().querySelector("#iimport").onclick = () => importInvoicesX();
     view().querySelectorAll("[data-view]").forEach(b => b.onclick = () => viewInvoice(b.dataset.view));
+    view().querySelectorAll("[data-pay]").forEach(b => b.onclick = () => receiveModal(Store.get("invoices", b.dataset.pay)));
   }
   function newInvoice() {
     const custs = Store.all("customers");
@@ -462,9 +475,9 @@
       ? `<button class="btn btn-ok" id="approve">✅ ອະນຸມັດ & ລົງບັນຊີ</button> <button class="btn btn-danger" id="reject">✕ ປະຕິເສດ</button>`
       : `<span class="hint">⏳ ລໍ Manager/Admin ອະນຸມັດ</span>`;
     else if (inv.status === "rejected") actions = `<button class="btn btn-danger" id="del">ລຶບ</button>`;
-    else if (inv.status === "draft") actions = `<button class="btn btn-primary" id="post">✔ Post (ສ້າງ JE)</button> <button class="btn btn-danger" id="del">ລຶບ</button>`;
+    else if (inv.status === "draft") actions = `<button class="btn btn-primary" id="post">✔ ຢືນຢັນ & ລົງບັນຊີ</button> <button class="btn btn-danger" id="del">ລຶບ</button>`;
     else if (inv.status !== "paid" && inv.status !== "void") actions = `<button class="btn btn-primary" id="receive">💰 ຮັບເງິນ</button>`;
-    if (inv.status !== "draft" && inv.status !== "void") actions += ` <button class="btn btn-danger" id="voidinv">Void</button>`;
+    if (inv.status !== "draft" && inv.status !== "void") actions += ` <button class="btn btn-danger" id="voidinv">ຍົກເລີກໃບ</button>`;
     if (inv.status !== "draft" && inv.status !== "void") actions += ` <button class="btn btn-ghost" id="assignser">ຜູກ Serial</button>`;
     UI.modal("Invoice " + inv.number, `
       <div class="flex justify-between mb-3"><div><div class="font-semibold text-lg">${E(cust.name)}</div><div class="hint">${E(cust.address || "")} · TIN ${E(cust.tin || "-")}</div></div>
@@ -481,7 +494,7 @@
         const iat = body.querySelector("#iattach"); if (iat) iat.onclick = () => { close(); attachDocsModal("invoices", id, "Invoice " + inv.number); };
         const ipr = body.querySelector("#iprint"); if (ipr) ipr.onclick = () => invoicePrint(inv);
         const icp = body.querySelector("#icopy"); if (icp) icp.onclick = () => { close(); copyInvoice(inv); };
-        if (post) post.onclick = () => previewPost("Invoice " + inv.number, () => Acc.postInvoice(inv), () => guardedPost("invoice", inv, () => { try { Acc.postInvoice(inv); close(); UI.toast("Post ສຳເລັດ — JE ຖືກສ້າງ", "ok"); invoices(); } catch (e) { UI.toast(e.message, "err"); } }));
+        if (post) post.onclick = () => previewPost("Invoice " + inv.number, () => Acc.postInvoice(inv), () => guardedPost("invoice", inv, () => { try { Acc.postInvoice(inv); close(); listFilter.invoices = "open"; UI.toast("ລົງບັນຊີແລ້ວ ✓ ໃບນີ້ຢູ່ແທັບ \"ຄ້າງຮັບ\" — ກົດ \"ຮັບເງິນ\" ເມື່ອລູກຄ້າຈ່າຍ", "ok"); invoices(); } catch (e) { UI.toast(e.message, "err"); } }));
         if (del) del.onclick = () => { Store.remove("invoices", id); lines.forEach(l => Store.remove("invoice_lines", l.id)); close(); invoices(); UI.toast("ລຶບແລ້ວ", "ok"); };
         if (rec) rec.onclick = () => receiveModal(inv, close);
         const vi = body.querySelector("#voidinv"); if (vi) vi.onclick = () => UI.confirmDialog("Void invoice " + inv.number + "?", () => { Acc.voidInvoice(inv); close(); invoices(); UI.toast("Void ສຳເລັດ", "ok"); });
@@ -489,7 +502,7 @@
         const apv = body.querySelector("#approve"); if (apv) apv.onclick = () => { // approving IS posting — no second click, nothing forgotten in draft
           Store.update("invoices", id, { status: "draft", approved_by: currentRole(), approved_at: new Date().toISOString() }); Acc.audit("approve", "invoices", id, inv.number);
           const fresh = Store.get("invoices", id);
-          guardedPost("invoice", fresh, () => { try { Acc.postInvoice(fresh); UI.toast("✅ ອະນຸມັດ & ລົງບັນຊີແລ້ວ", "ok"); } catch (e) { UI.toast("ອະນຸມັດແລ້ວ ແຕ່ລົງບັນຊີບໍ່ໄດ້: " + e.message, "err"); } close(); invoices(); fableRefreshNotifs(); }, { onCancel: () => { invoices(); fableRefreshNotifs(); } });
+          guardedPost("invoice", fresh, () => { try { Acc.postInvoice(fresh); listFilter.invoices = "open"; UI.toast("✅ ອະນຸມັດ & ລົງບັນຊີແລ້ວ", "ok"); } catch (e) { UI.toast("ອະນຸມັດແລ້ວ ແຕ່ລົງບັນຊີບໍ່ໄດ້: " + e.message, "err"); } close(); invoices(); fableRefreshNotifs(); }, { onCancel: () => { invoices(); fableRefreshNotifs(); } });
         };
         const rej = body.querySelector("#reject"); if (rej) rej.onclick = () => UI.confirmDialog("ປະຕິເສດ " + inv.number + "?", () => { Store.update("invoices", id, { status: "rejected", approved_by: currentRole() }); Acc.audit("reject", "invoices", id, inv.number); close(); invoices(); UI.toast("ປະຕິເສດແລ້ວ", "warn"); fableRefreshNotifs(); });
       }});
@@ -571,6 +584,14 @@
     view().querySelector("#wht").onclick = () => whtEntryModal();
     view().querySelector("#bimport").onclick = () => importBillsX();
     view().querySelectorAll("[data-view]").forEach(b => b.onclick = () => viewBill(b.dataset.view));
+    view().querySelectorAll("[data-pay]").forEach(b => b.onclick = () => payBillModal(Store.get("bills", b.dataset.pay)));
+  }
+  function payBillModal(bill, parentClose) {
+    const banks = Store.all("bank_accounts"), bal = Number(bill.total) - (Number(bill.paid) || 0);
+    formModal("ຈ່າຍ Bill " + bill.number, [{ name: "bank_id", label: "ຈ່າຍຈາກບັນຊີ", type: "select", options: banks.map(b => ({ value: b.id, label: b.name })) }, { name: "amount", label: "ຈຳນວນ", type: "number" }, { name: "date", label: "ວັນທີ", type: "date" }], { amount: bal, date: UI.today() }, (d, c2) => {
+      if (d.amount <= 0) return UI.toast("ໃສ່ຈຳນວນ", "warn");
+      Acc.payBill({ bill_id: bill.id, bank_id: d.bank_id, amount: d.amount, date: d.date }); c2(); if (parentClose) parentClose(); UI.toast("ຈ່າຍເງິນສຳເລັດ", "ok"); bills();
+    });
   }
   function newBill() {
     const vends = Store.all("vendors"); if (!vends.length) return UI.toast("ເພີ່ມຜູ້ສະໜອງກ່ອນ", "warn");
@@ -595,7 +616,7 @@
       ? `<button class="btn btn-ok" id="approve">✅ ອະນຸມັດ & ລົງບັນຊີ</button> <button class="btn btn-danger" id="reject">✕ ປະຕິເສດ</button>`
       : `<span class="hint">⏳ ລໍ Manager/Admin ອະນຸມັດ</span>`;
     else if (bill.status === "rejected") actions = `<button class="btn btn-danger" id="del">ລຶບ</button>`;
-    else if (bill.status === "draft") actions = `<button class="btn btn-primary" id="post">✔ Post</button> <button class="btn btn-danger" id="del">ລຶບ</button>`;
+    else if (bill.status === "draft") actions = `<button class="btn btn-primary" id="post">✔ ຢືນຢັນ & ລົງບັນຊີ</button> <button class="btn btn-danger" id="del">ລຶບ</button>`;
     else if (bill.status !== "paid" && bill.status !== "void") actions = `<button class="btn btn-primary" id="pay">💸 ຈ່າຍເງິນ</button>`;
     if (bill.status !== "draft" && bill.status !== "void" && bill.status !== "pending" && bill.status !== "rejected") actions += ` <button class="btn btn-danger" id="voidbill">Void</button>`;
     UI.modal("Bill " + bill.number, `<div class="flex justify-between mb-3"><div class="font-semibold text-lg">${E(vend.name)}</div><div>${UI.statusBadge(bill.status)}</div></div>
@@ -607,18 +628,15 @@
         const bpr = body.querySelector("#bprint"); if (bpr) bpr.onclick = () => billPrint(bill);
         const bcp = body.querySelector("#bcopy"); if (bcp) bcp.onclick = () => { close(); copyBill(bill); };
         const vbl = body.querySelector("#voidbill"); if (vbl) vbl.onclick = () => UI.confirmDialog("Void bill " + bill.number + "?", () => { Acc.voidBill(bill); close(); bills(); UI.toast("Void ສຳເລັດ", "ok"); });
-        if (p) p.onclick = () => previewPost("Bill " + bill.number, () => Acc.postBill(bill), () => guardedPost("bill", bill, () => { try { Acc.postBill(bill); close(); bills(); UI.toast("Post ສຳເລັດ", "ok"); } catch (e) { UI.toast(e.message, "err"); } }));
+        if (p) p.onclick = () => previewPost("Bill " + bill.number, () => Acc.postBill(bill), () => guardedPost("bill", bill, () => { try { Acc.postBill(bill); close(); listFilter.bills = "open"; UI.toast("ລົງບັນຊີແລ້ວ ✓ ໃບນີ້ຢູ່ແທັບ \"ຄ້າງຈ່າຍ\" — ກົດ \"ຈ່າຍເງິນ\" ເມື່ອຈ່າຍ", "ok"); bills(); } catch (e) { UI.toast(e.message, "err"); } }));
         if (del) del.onclick = () => { Store.remove("bills", id); lines.forEach(l => Store.remove("bill_lines", l.id)); close(); bills(); };
         const apv = body.querySelector("#approve"); if (apv) apv.onclick = () => { // approving IS posting
           Store.update("bills", id, { status: "draft", approved_by: currentRole(), approved_at: new Date().toISOString() }); Acc.audit("approve", "bills", id, bill.number);
           const fresh = Store.get("bills", id);
-          guardedPost("bill", fresh, () => { try { Acc.postBill(fresh); UI.toast("✅ ອະນຸມັດ & ລົງບັນຊີແລ້ວ", "ok"); } catch (e) { UI.toast("ອະນຸມັດແລ້ວ ແຕ່ລົງບັນຊີບໍ່ໄດ້: " + e.message, "err"); } close(); bills(); fableRefreshNotifs(); }, { onCancel: () => { bills(); fableRefreshNotifs(); } });
+          guardedPost("bill", fresh, () => { try { Acc.postBill(fresh); listFilter.bills = "open"; UI.toast("✅ ອະນຸມັດ & ລົງບັນຊີແລ້ວ", "ok"); } catch (e) { UI.toast("ອະນຸມັດແລ້ວ ແຕ່ລົງບັນຊີບໍ່ໄດ້: " + e.message, "err"); } close(); bills(); fableRefreshNotifs(); }, { onCancel: () => { bills(); fableRefreshNotifs(); } });
         };
         const rej = body.querySelector("#reject"); if (rej) rej.onclick = () => UI.confirmDialog("ປະຕິເສດ " + bill.number + "?", () => { Store.update("bills", id, { status: "rejected", approved_by: currentRole() }); Acc.audit("reject", "bills", id, bill.number); close(); bills(); UI.toast("ປະຕິເສດແລ້ວ", "warn"); fableRefreshNotifs(); });
-        if (pay) pay.onclick = () => {
-          const banks = Store.all("bank_accounts");
-          formModal("ຈ່າຍ Bill " + bill.number, [{ name: "bank_id", label: "ຈ່າຍຈາກ", type: "select", options: banks.map(b => ({ value: b.id, label: b.name })) }, { name: "amount", label: "ຈຳນວນ", type: "number" }, { name: "date", label: "ວັນທີ", type: "date" }], { amount: bal, date: UI.today() }, (d, c2) => { Acc.payBill({ bill_id: bill.id, bank_id: d.bank_id, amount: d.amount, date: d.date }); c2(); close(); bills(); UI.toast("ຈ່າຍເງິນສຳເລັດ", "ok"); });
-        };
+        if (pay) pay.onclick = () => payBillModal(bill, close);
       }});
   }
 
@@ -920,7 +938,8 @@
     const vatOut = Acc.accountBalance("2200"), vatIn = Acc.accountBalance("1400");
     const audit = Store.all("audit_log").sort((a, b) => (b.ts || "").localeCompare(a.ts || "")).slice(0, 20);
     view().innerHTML = UI.pageHead("ລາຍງານ", "Reports & Governance", `<button class="btn btn-primary" data-tool="anomaly">🔎 ກວດຄວາມຜິດປົກກະຕິ</button><button class="btn btn-ghost" id="r-chart">ກຣາຟ 12ດ</button><button class="btn btn-ghost" id="r-cbs">BS ປຽບທຽບ</button><button class="btn btn-ghost" id="r-fasch">ຄ່າເສື່ອມ</button><button class="btn btn-ghost" id="r-vatd">VAT ລະອຽດ</button><button class="btn btn-ghost" id="r-tbcsv">TB CSV</button><button class="btn btn-ghost" id="r-ppc">Prepaid Sheet</button><button class="btn btn-ghost" id="r-lslot">Low/Lot</button><button class="btn btn-ghost" id="r-ctb">TB ປຽບທຽບ</button><button class="btn btn-ghost" id="r-rvi">ລາຍຮັບ/ສິນຄ້າ</button><button class="btn btn-ghost" id="r-exp">ຄ່າໃຊ້ຈ່າຍ/ໝວດ</button><button class="btn btn-ghost" id="r-apage">AP Aging</button><button class="btn btn-ghost" id="r-ccpl">CC P&L</button><button class="btn btn-ghost" id="r-cmp">P&L ປຽບທຽບ</button><button class="btn btn-ghost" id="r-aged">Stock Aging</button><button class="btn btn-ghost" id="r-proj">Project P&L</button><button class="btn btn-ghost" id="r-grir">GR/IR</button><button class="btn btn-ghost" id="r-pur">ຊື້</button><button class="btn btn-ghost" id="r-me">Month-end</button><button class="btn btn-ghost" id="r-fc">Cash 13w</button><button class="btn btn-ghost" id="r-rev">ວິເຄາະລາຍຮັບ</button><button class="btn btn-ghost" id="r-gl">GL</button><button class="btn btn-ghost" id="r-wc">Working Capital</button><button class="btn btn-ghost" id="r-ecl">ECL</button><button class="btn btn-ghost" id="r-fa">ຊັບສິນ</button><button class="btn btn-ghost" id="r-cf">ກະແສເງິນສົດ</button><button class="btn btn-ghost" id="r-sv">ມູນຄ່າສະຕັອກ</button><button class="btn btn-ghost" id="r-wht">WHT</button><button class="btn btn-primary" id="r-csv">Export CSV</button>`) +
-      `<div class="grid md:grid-cols-3 gap-3 mb-5">
+      `<div class="grid md:grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        ${reportCard("fs", "📑 ງົບການເງິນ", "ກຳໄລ-ຂາດທຶນ, ໃບດຸ່ນດ່ຽງ, ກະແສເງິນສົດ — ເລືອກປີ/ທຽບ 2 ປີ")}
         ${reportCard("gl", "📗 ບັນຊີແຍກປະເພດ", "Trial Balance, GL, P&L, ໃບດຸ່ນດ່ຽງ")}
         ${reportCard("banking", "🏦 ກະແສເງິນສົດ", "ລາຍການ Payment ຮັບ/ຈ່າຍ")}
         ${reportCard("inventory", "📦 ມູນຄ່າສະຕັອກ", "Stock valuation & Stock Card")}
@@ -1983,18 +2002,27 @@
     const vends = Store.all("vendors");
     // FIX v1.1: ຕັດ 5100 COGS ອອກຈາກຕົວເລືອກທຳອິດ — ຄ່າໃຊ້ຈ່າຍທົ່ວໄປບໍ່ຄວນລົງ COGS ໂດຍບໍ່ຕັ້ງໃຈ (margin ຈະເພ້ຽນ)
     const expAccts = Store.where("accounts", a => !a.is_header && a.type === "Expense").sort((a, b) => (a.code === "5100" ? 1 : 0) - (b.code === "5100" ? 1 : 0) || String(a.code).localeCompare(String(b.code)));
-    formModal("Quick Record — ຄ່າໃຊ້ຈ່າຍດ່ວນ", [
+    const banksQ = Store.all("bank_accounts");
+    formModal("ບັນທຶກຄ່າໃຊ້ຈ່າຍ", [
+      { name: "paid", label: "ຈ່າຍເງິນແລ້ວບໍ?", type: "select", options: [{ value: "now", label: "ຈ່າຍແລ້ວ — ຫັກເງິນຈາກບັນຊີ" }, { value: "later", label: "ຍັງບໍ່ຈ່າຍ — ຄ້າງຈ່າຍຜູ້ສະໜອງ" }] },
+      { name: "bank_id", label: "ຈ່າຍຈາກບັນຊີ (ຖ້າຈ່າຍແລ້ວ)", type: "select", options: banksQ.map(b => ({ value: b.id, label: b.name })) },
       { name: "vendor_id", label: "ຜູ້ສະໜອງ", type: "select", options: [{ value: "", label: "— ບໍ່ລະບຸ —" }].concat(vends.map(v => ({ value: v.id, label: v.name }))) },
       { name: "acct", label: "ໝວດຄ່າໃຊ້ຈ່າຍ", type: "select", options: expAccts.map(a => ({ value: a.code, label: a.code + " " + a.name })) },
       { name: "amount", label: "ຍອດ (ກ່ອນ VAT)", type: "number", col: "col-span-1" },
       { name: "vat", label: "VAT?", type: "select", options: [{ value: "tax_0", label: "ບໍ່ມີ" }, { value: "tax_in10", label: "VAT 10%" }], col: "col-span-1" },
       { name: "desc", label: "ລາຍລະອຽດ" }
-    ], {}, (d, close) => {
+    ], { paid: "now" }, (d, close) => {
       if (d.amount <= 0) return UI.toast("ໃສ່ຈຳນວນ", "warn");
+      if (d.paid === "now" && !d.bank_id) return UI.toast("ເລືອກບັນຊີທີ່ຈ່າຍ", "warn");
       let vid = d.vendor_id; if (!vid) { if (!vends.length) return UI.toast("ເພີ່ມຜູ້ສະໜອງກ່ອນ", "warn"); vid = vends[0].id; }
       const bill = Store.insert("bills", { number: Acc.nextNumber("BILL", "bills", UI.today()), vendor_id: vid, date: UI.today(), due_date: UI.today(), currency: "LAK", fx_rate: 1, note: d.desc, project_id: "", cc_id: "", status: "draft", paid: 0, created_at: new Date().toISOString() });
       Store.insert("bill_lines", { bill_id: bill.id, account_id: d.acct || "5200", description: d.desc, qty: 1, price: d.amount, tax_code: d.vat || "tax_0" });
-      guardedPost("bill", bill, () => { try { Acc.postBill(bill); close(); bills(); UI.toast("ບັນທຶກ & Post ຄ່າໃຊ້ຈ່າຍ", "ok"); } catch (e) { UI.toast(e.message, "err"); } });
+      guardedPost("bill", bill, () => { try {
+        Acc.postBill(bill);
+        if (d.paid === "now") { const total = Number((Store.get("bills", bill.id) || {}).total) || 0; Acc.payBill({ bill_id: bill.id, bank_id: d.bank_id, amount: total, date: UI.today() }); }
+        close(); listFilter.bills = d.paid === "now" ? "done" : "open";
+        UI.toast(d.paid === "now" ? "ບັນທຶກຄ່າໃຊ້ຈ່າຍ ແລະ ຈ່າຍເງິນແລ້ວ ✓" : "ບັນທຶກຄ່າໃຊ້ຈ່າຍແລ້ວ — ຄ້າງຈ່າຍ (ກົດ \"ຈ່າຍເງິນ\" ໃນແທັບຄ້າງຈ່າຍ ເມື່ອຈ່າຍ)", "ok"); bills();
+      } catch (e) { UI.toast(e.message, "err"); } });
     });
   }
 
@@ -2210,7 +2238,10 @@
   // show the Dr/Cr a posting WOULD create (run on a copy of the data), then post for real on confirm
   function previewPost(title, run, proceed) {
     const sim = PostMon.simulate(run);
-    const rows = sim.entries.map(j => `<div class="mb-3"><div class="hint mb-1">${E(j.memo)}</div><table class="data"><thead><tr><th>ບັນຊີ</th><th class="num">Dr</th><th class="num">Cr</th></tr></thead><tbody>${j.lines.map(l => `<tr><td>${E(l.account + " " + String(l.name || "").replace(l.account + " ", ""))}</td><td class="num">${l.debit ? M(l.debit) : ""}</td><td class="num">${l.credit ? M(l.credit) : ""}</td></tr>`).join("")}</tbody></table></div>`).join("");
+    const plain = sim.entries.map(j => j.lines.map(l => { const a = Acc.acc(l.account) || {}, nm = String(l.name || a.name || l.account).replace(l.account + " ", ""), v = M(l.debit || l.credit), dr = !!l.debit;
+      const up = (dr && (a.type === "Asset" || a.type === "Expense")) || (!dr && (a.type === "Liability" || a.type === "Equity" || a.type === "Revenue"));
+      return `<li>${E(nm)} <b>${up ? "ເພີ່ມ" : "ຫຼຸດ"} ${v}</b></li>`; }).join("")).join("");
+    const rows = (plain ? `<div class="mb-3 p-3 rounded-lg" style="background:#f2f9f8"><div class="font-semibold mb-1">ສິ່ງທີ່ຈະເກີດຂຶ້ນ:</div><ul class="text-sm" style="list-style:disc;padding-left:18px">${plain}</ul></div>` : "") + sim.entries.map(j => `<div class="mb-3"><div class="hint mb-1">${E(j.memo)} · Dr = ດ້ານໜີ້, Cr = ດ້ານມີ (ຕ້ອງເທົ່າກັນ)</div><table class="data"><thead><tr><th>ບັນຊີ</th><th class="num">Dr</th><th class="num">Cr</th></tr></thead><tbody>${j.lines.map(l => `<tr><td>${E(l.account + " " + String(l.name || "").replace(l.account + " ", ""))}</td><td class="num">${l.debit ? M(l.debit) : ""}</td><td class="num">${l.credit ? M(l.credit) : ""}</td></tr>`).join("")}</tbody></table></div>`).join("");
     UI.modal("ເບິ່ງ Journal ກ່ອນລົງບັນຊີ · " + title, `${sim.ok ? "" : `<p class="mb-3" style="color:#b91c1c">⚠ ລົງບັນຊີບໍ່ໄດ້: ${E(sim.error)}</p>`}${rows || (sim.ok ? '<p class="hint">ບໍ່ມີ Journal</p>' : "")}
       <div class="flex justify-end gap-2 mt-3"><button class="btn btn-ghost" data-c>ປິດ</button>${sim.ok ? '<button class="btn btn-primary" id="pp-go">ລົງບັນຊີ</button>' : ""}</div>`, { wide: true });
     const go = document.getElementById("pp-go"); if (go) go.onclick = () => { document.querySelectorAll("[data-c]").forEach(b => b.click()); proceed(); };
@@ -3888,7 +3919,7 @@
       }
     } catch (e) {}
     // Guided tour ຄັ້ງທຳອິດ
-    try { setTimeout(() => fableTour(), 800); } catch (e) {}
+    try { document.addEventListener("click", () => { window.__userActed = true; }, { once: true, capture: true }); setTimeout(() => { if (!window.__userActed) fableTour(); }, 800); } catch (e) {}
   }
 
   const ROUTES = { fs: () => FSUI.page(), posin: () => PosinUI.page(), advances, disburse, procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };

@@ -98,7 +98,7 @@ label.field{display:block;font-size:12.5px;font-weight:600;color:#475569;margin-
 
 
 /* ---------- Advanced mode: niche accounting buttons hidden unless Settings > Advanced is on ---------- */
-body:not(.adv-on) :is(#landed,#nrv,#bom,#recipecost,#fxadj,#impair,#jobcost,#retention,#balloc){display:none !important}
+body:not(.adv-on) :is(#landed,#nrv,#bom,#recipecost,#fxadj,#impair,#jobcost,#retention,#balloc,#assignser){display:none !important}
 
 /* ============================================================
    Action-first UI (v2) — one clear next step per screen
