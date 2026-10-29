@@ -30,3 +30,21 @@ test("posting-rule history keeps every version; bySource counts journals per mod
   je(c, "2026-10-01", [["1100", 10, 0], ["3100", 0, 10]]);
   assert.ok(c.PostMon.bySource(365).some(s => s.source === "T" && s.count === 1));
 });
+
+test("profit & loss by branch / project from the journal dimension", async () => {
+  const c = await freshApp();
+  const post = (dim, rev, exp) => c.Acc.postJournal({ date: "2026-10-05", source_type: "T", memo: "x", dim, lines: [{ account: "1100", debit: rev, credit: 0 }, { account: "4100", debit: 0, credit: rev }, { account: "5200", debit: exp, credit: 0 }, { account: "1100", debit: 0, credit: exp }] });
+  post({ branch: "b1" }, 1000, 300); post({ branch: "b2" }, 500, 100); post(undefined, 50, 0);
+  const r = c.PostMon.plBy("branch"), g = v => r.find(x => x.value === v);
+  assert.equal(g("b1").profit, 700); assert.equal(g("b2").profit, 400); assert.equal(g("").revenue, 50, "no dimension = ບໍ່ລະບຸ");
+});
+
+test("rules can be restored from history; each journal remembers which rule version posted it", async () => {
+  const c = await freshApp();
+  c.Store.insert("settings", { id: "posting", REV: "4100" }); c.PostMon.logRules({ REV: "4100" }, "v1");
+  c.Store.update("settings", "posting", { REV: "4110" }); c.PostMon.logRules({ REV: "4110" }, "v2");
+  assert.equal(c.Acc.PA("REV"), "4110");
+  c.PostMon.restoreRules(1); assert.equal(c.Acc.PA("REV"), "4100"); assert.equal(c.PostMon.ruleHistory().length, 3);
+  const je = c.Acc.postJournal({ date: "2026-10-05", source_type: "T", memo: "x", lines: [{ account: "1100", debit: 1, credit: 0 }, { account: "3100", debit: 0, credit: 1 }] });
+  assert.equal(c.Store.get("journal_entries", je.id).rule_ver, 3);
+});

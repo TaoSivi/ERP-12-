@@ -294,7 +294,7 @@
   function postV(r, date) {
     const def = VDEFS[r.type];
     Acc.assertOpen(date);
-    const je = Acc.postJournal({ date, source_type: "REQUEST", source_id: r.id, memo: r.number + " " + r.purpose, lines: def.journal(r, r.fields || {}) });
+    const je = Acc.postJournal({ date, source_type: "REQUEST", source_id: r.id, memo: r.number + " " + r.purpose, lines: def.journal(r, r.fields || {}), dim: { project: r.project_id } });
     log(r, "post", "auto", je.number || "");
     return set(r, { stage: "closed", je_id: je.id, posted_at: new Date().toISOString() });
   }

@@ -14,7 +14,7 @@
     "credit_notes","cn_lines","debit_notes","dn_lines","prepaids","deferreds","fx_rates",
     "cost_centres","projects",
     "purchase_requisitions","pr_lines","recurring","bank_statements","locations","stock_serials","stock_transfers","leaves",
-    "companies","salary_revisions","pos_days","ext_in",
+    "companies","salary_revisions","pos_days","ext_in","stock_docs",
     "sales_orders","so_lines","deliveries","delivery_lines","users","holidays",
     "boms","bom_lines",
     "employees","payroll","assets","budgets","audit_log",
@@ -191,7 +191,9 @@
     DB.employees.push({ id:uid("emp"), name:"ນາງ ສົມໃຈ", dept:"ຂາຍ", position:"ພະນັກງານຂາຍ", phone:"020 9999 0000", start_date:"2024-01-15", base_salary:4500000, status:"active" });
   }
 
+  let dry = false; // dryRun: work on a copy, persist nothing
   async function persistNew(coll, obj) {
+    if (dry) return;
     try { await backend.append(coll, obj); }
     catch (e) { console.error(e); UI && UI.toast && UI.toast("ບັນທຶກຂຶ້ນ cloud ບໍ່ສຳເລັດ: " + e.message, "err"); }
   }
@@ -220,6 +222,9 @@
       return this.mode;
     },
     collections() { return COLLECTIONS.slice(); },
+    isDry() { return dry; },
+    // run fn against a COPY of the data (for "preview the journal"): the real data and the cloud are never touched
+    dryRun(fn) { const real = DB; DB = JSON.parse(JSON.stringify(real)); dry = true; try { return fn(); } finally { DB = real; dry = false; } },
     all(coll) { return (DB[coll] || []).slice(); },
     raw(coll) { return DB[coll] || (DB[coll] = []); },
     get(coll, id) { return (DB[coll] || []).find(r => r.id === id) || null; },
@@ -235,12 +240,14 @@
       const row = this.get(coll, id);
       if (!row) return null;
       Object.assign(row, patch);
+      if (dry) return row;
       if (backend === LocalBackend) LocalBackend.persist();
       else backend.update(coll, id, row).catch(e => console.error(e));
       return row;
     },
     remove(coll, id) {
       DB[coll] = (DB[coll] || []).filter(r => r.id !== id);
+      if (dry) return;
       if (backend === LocalBackend) LocalBackend.persist();
       else backend.remove(coll, id).catch(e => console.error(e));
     },

@@ -318,7 +318,7 @@
     </ul></div>`;
   }
   function bookingCard(s) {
-    const jes = s.grns.map(g => ["ຮັບເຄື່ອງ " + g.number, g.total]).concat(s.bills.map(b => ["ບິນ " + b.number, b.total]));
+    const jes = s.grns.map(g => ["ຮັບເຄື່ອງ " + g.number + ` <button class="btn btn-ghost btn-sm grn-print" data-id="${g.id}">ພິມ</button>`, g.total]).concat(s.bills.map(b => ["ບິນ " + b.number, b.total]));
     return `<div class="card p-5"><div class="section-title">ການລົງບັນຊີ</div>
       <div class="text-sm space-y-2">
         <div class="booking">1–4 · ຂໍຊື້, ສະເໜີ, PO: <b>ບໍ່ລົງບັນຊີ</b></div>
@@ -326,7 +326,7 @@
         <div class="booking">6 · ບິນ: Dr GR/IR + VAT · Cr ເຈົ້າໜີ້</div>
         <div class="booking">7 · ຈ່າຍ: Dr ເຈົ້າໜີ້ · Cr ທະນາຄານ</div>
       </div>
-      ${jes.length ? `<div class="mt-3 text-sm">${jes.map(j => `<div class="flex justify-between border-t border-slate-100 py-1"><span>${E(j[0])}</span><b>${M(j[1])}</b></div>`).join("")}</div>` : ""}
+      ${jes.length ? `<div class="mt-3 text-sm">${jes.map(j => `<div class="flex justify-between border-t border-slate-100 py-1"><span>${/grn-print/.test(j[0]) ? j[0].replace(/^([^<]*)/, (m) => E(m)) : E(j[0])}</span><b>${M(j[1])}</b></div>`).join("")}</div>` : ""}
     </div>`;
   }
 

@@ -59,7 +59,49 @@
     const cur = Store.get("settings", "posting_history"), items = [{ ts: new Date().toISOString(), by: who(), note: note || "", rules: JSON.parse(JSON.stringify(map || {})) }].concat((cur && cur.items) || []).slice(0, 50);
     if (cur) Store.update("settings", "posting_history", { items }); else Store.insert("settings", { id: "posting_history", items });
   }
+  // put an older version of the rules back (the restore itself is logged as a new version; old journals are never touched)
+  function restoreRules(index) {
+    const h = ruleHistory()[index]; if (!h) throw new Error("ບໍ່ພົບເວີຊັນ");
+    const cur = Store.get("settings", "posting"); if (cur) Store.update("settings", "posting", Object.assign({}, h.rules, { id: "posting" })); else Store.insert("settings", Object.assign({ id: "posting" }, h.rules));
+    logRules(h.rules, "ກູ້ຄືນຈາກ " + h.ts.slice(0, 16));
+  }
   const ruleHistory = () => ((Store.get("settings", "posting_history") || {}).items) || [];
 
-  window.PostMon = { health, bySource, trialBalance, closePeriod, snapshots, logRules, ruleHistory };
+  /* ---------- preview / simulation: run a posting on a COPY of the data and return the journals it would create ---------- */
+  function simulate(fn) {
+    const before = new Set(Store.all("journal_entries").map(j => j.id)), out = { ok: true, error: "", entries: [] };
+    Store.dryRun(() => {
+      try { fn(); } catch (e) { out.ok = false; out.error = e.message; }
+      out.entries = Store.all("journal_entries").filter(j => !before.has(j.id)).map(j => ({ number: j.number, date: j.date, memo: j.memo,
+        lines: Store.where("journal_lines", l => l.je_id === j.id).map(l => ({ account: l.account, name: l.account_name, debit: l.debit, credit: l.credit })) }));
+    });
+    return out;
+  }
+
+  /* ---------- posting error queue: every failed post from the UI is kept (who, what, why) ---------- */
+  function logError(fn, msg) {
+    if (Store.isDry()) return;
+    const cur = Store.get("settings", "post_errors"), items = [{ ts: new Date().toISOString(), by: who(), fn, msg: String(msg) }].concat((cur && cur.items) || []).slice(0, 100);
+    if (cur) Store.update("settings", "post_errors", { items }); else Store.insert("settings", { id: "post_errors", items });
+  }
+  const errors = () => ((Store.get("settings", "post_errors") || {}).items) || [];
+  const clearErrors = () => { if (Store.get("settings", "post_errors")) Store.update("settings", "post_errors", { items: [] }); };
+  ["postInvoice", "postBill", "receivePayment", "payBill", "postCreditNote", "postDebitNote", "postJournal", "bankTransfer", "stockAdjust", "writeOffBadDebt"].forEach(fn => {
+    const orig = Acc[fn]; if (typeof orig !== "function") return;
+    Acc[fn] = function () { try { return orig.apply(this, arguments); } catch (e) { logError(fn, e.message); throw e; } };
+  });
+
+  // profit & loss grouped by a journal dimension (branch | project | cc) — journals with no dimension are "ບໍ່ລະບຸ"
+  function plBy(key, from, to) {
+    const typ = {}; Store.all("accounts").forEach(a => { typ[a.code] = a.type; });
+    const by = {}, grp = {}; Store.all("journal_entries").forEach(j => { if (live(j) && (!from || j.date >= from) && (!to || j.date <= to)) grp[j.id] = (j.dim && j.dim[key]) || ""; });
+    Store.all("journal_lines").forEach(l => {
+      const g = grp[l.je_id]; if (g === undefined) return; const t = typ[l.account]; if (t !== "Revenue" && t !== "Expense") return;
+      const r = by[g] = by[g] || { value: g, revenue: 0, expense: 0 };
+      if (t === "Revenue") r.revenue += (+l.credit || 0) - (+l.debit || 0); else r.expense += (+l.debit || 0) - (+l.credit || 0);
+    });
+    return Object.values(by).map(r => ({ value: r.value, revenue: round(r.revenue), expense: round(r.expense), profit: round(r.revenue - r.expense) })).sort((a, b) => b.revenue - a.revenue);
+  }
+
+  window.PostMon = { plBy, health, bySource, trialBalance, closePeriod, snapshots, logRules, ruleHistory, restoreRules, simulate, errors, clearErrors, logError };
 })();

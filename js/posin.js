@@ -159,7 +159,7 @@
     if (t.dr !== t.cr) throw new Error("Journal ບໍ່ສົມດຸນ (Dr " + t.dr + " ≠ Cr " + t.cr + ")");
     if (!L.length) throw new Error("ບໍ່ມີລາຍການໃຫ້ລົງບັນຊີ");
     Acc.assertOpen(rec.date);
-    const je = Acc.postJournal({ date: rec.date, source_type: "POS_DAILY", source_id: id, memo: "POS " + (rec.branch_name || rec.branch) + " " + rec.date + " (" + rec.day.bills + " ບິນ)", lines: L });
+    const je = Acc.postJournal({ date: rec.date, source_type: "POS_DAILY", source_id: id, memo: "POS " + (rec.branch_name || rec.branch) + " " + rec.date + " (" + rec.day.bills + " ບິນ)", lines: L, dim: { branch: rec.branch } });
     Store.update("pos_days", id, { status: "posted", je_id: je.id, posted: netOf(L), posted_at: new Date().toISOString(), posted_by: who || "", auto: !!auto, changed: false, adjust_error: "" });
     Acc.audit("post", "pos_days", id, (auto ? "auto " : "approve ") + rec.date + " " + t.dr);
     return je;

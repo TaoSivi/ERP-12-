@@ -481,7 +481,7 @@
         const iat = body.querySelector("#iattach"); if (iat) iat.onclick = () => { close(); attachDocsModal("invoices", id, "Invoice " + inv.number); };
         const ipr = body.querySelector("#iprint"); if (ipr) ipr.onclick = () => invoicePrint(inv);
         const icp = body.querySelector("#icopy"); if (icp) icp.onclick = () => { close(); copyInvoice(inv); };
-        if (post) post.onclick = () => guardedPost("invoice", inv, () => { try { Acc.postInvoice(inv); close(); UI.toast("Post ສຳເລັດ — JE ຖືກສ້າງ", "ok"); invoices(); } catch (e) { UI.toast(e.message, "err"); } });
+        if (post) post.onclick = () => previewPost("Invoice " + inv.number, () => Acc.postInvoice(inv), () => guardedPost("invoice", inv, () => { try { Acc.postInvoice(inv); close(); UI.toast("Post ສຳເລັດ — JE ຖືກສ້າງ", "ok"); invoices(); } catch (e) { UI.toast(e.message, "err"); } }));
         if (del) del.onclick = () => { Store.remove("invoices", id); lines.forEach(l => Store.remove("invoice_lines", l.id)); close(); invoices(); UI.toast("ລຶບແລ້ວ", "ok"); };
         if (rec) rec.onclick = () => receiveModal(inv, close);
         const vi = body.querySelector("#voidinv"); if (vi) vi.onclick = () => UI.confirmDialog("Void invoice " + inv.number + "?", () => { Acc.voidInvoice(inv); close(); invoices(); UI.toast("Void ສຳເລັດ", "ok"); });
@@ -607,7 +607,7 @@
         const bpr = body.querySelector("#bprint"); if (bpr) bpr.onclick = () => billPrint(bill);
         const bcp = body.querySelector("#bcopy"); if (bcp) bcp.onclick = () => { close(); copyBill(bill); };
         const vbl = body.querySelector("#voidbill"); if (vbl) vbl.onclick = () => UI.confirmDialog("Void bill " + bill.number + "?", () => { Acc.voidBill(bill); close(); bills(); UI.toast("Void ສຳເລັດ", "ok"); });
-        if (p) p.onclick = () => guardedPost("bill", bill, () => { try { Acc.postBill(bill); close(); bills(); UI.toast("Post ສຳເລັດ", "ok"); } catch (e) { UI.toast(e.message, "err"); } });
+        if (p) p.onclick = () => previewPost("Bill " + bill.number, () => Acc.postBill(bill), () => guardedPost("bill", bill, () => { try { Acc.postBill(bill); close(); bills(); UI.toast("Post ສຳເລັດ", "ok"); } catch (e) { UI.toast(e.message, "err"); } }));
         if (del) del.onclick = () => { Store.remove("bills", id); lines.forEach(l => Store.remove("bill_lines", l.id)); close(); bills(); };
         const apv = body.querySelector("#approve"); if (apv) apv.onclick = () => { // approving IS posting
           Store.update("bills", id, { status: "draft", approved_by: currentRole(), approved_at: new Date().toISOString() }); Acc.audit("approve", "bills", id, bill.number);
@@ -634,7 +634,7 @@
         { h: "", render: r => `<button class="btn btn-ghost btn-sm" data-card="${r.id}">Stock Card</button> <button class="btn btn-ghost btn-sm" data-kardex="${r.id}">Kardex</button> <button class="btn btn-ghost btn-sm" data-edit="${r.id}">ແກ້</button>` }
       ], rows);
     view().querySelector("#add").onclick = () => itemForm();
-    view().querySelector("#adjust").onclick = () => stockAdjustModal();
+    view().querySelector("#adjust").onclick = () => StockDocUI.list();
     view().querySelector("#nrv").onclick = () => nrvModal();
     view().querySelector("#serial").onclick = () => serialModal();
     view().querySelector("#i-imp").onclick = () => importItemsCSV();
@@ -737,10 +737,10 @@
     const je = Store.get("journal_entries", id); const lines = Store.where("journal_lines", l => l.je_id === id);
     const nm = l => String(l.account_name || "").replace(String(l.account || "") + " ", "");
     const srcColl = { INVOICE: "invoices", BILL: "bills", PAYMENT: "payments", CREDIT_NOTE: "credit_notes", DEBIT_NOTE: "debit_notes" }[String(je.source_type).replace(/_VOID$/, "")], srcDoc = srcColl && je.source_id ? Store.get(srcColl, je.source_id) : null;
-    UI.modal("JE " + je.number, `<div class="hint mb-2">${UI.fmtDate(je.date)} · ${E(je.memo)}</div><div class="hint mb-2">ແຫຼ່ງ: ${E(je.source_type || "-")}${srcDoc ? " · ເອກະສານ " + E(srcDoc.number || srcDoc.id) : ""} · ຜູ້ລົງບັນຊີ: ${E(je.posted_by || "-")}</div>
+    UI.modal("JE " + je.number, `<div class="hint mb-2">${UI.fmtDate(je.date)} · ${E(je.memo)}</div><div class="mb-2"><button class="btn btn-ghost btn-sm" id="je-print">ພິມໃບສຳຄັນ</button></div><div class="hint mb-2">ແຫຼ່ງ: ${E(je.source_type || "-")}${srcDoc ? " · ເອກະສານ " + E(srcDoc.number || srcDoc.id) : ""} · ຜູ້ລົງບັນຊີ: ${E(je.posted_by || "-")}</div>
       <div class="tbl-wrap"><table class="data"><thead><tr><th>ເລກບັນຊີ</th><th>ຊື່ບັນຊີ</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead><tbody>
       ${lines.map(l => `<tr><td>${E(l.account || "")}</td><td>${E(nm(l))}</td><td class="num">${l.debit ? M(l.debit) : ""}</td><td class="num">${l.credit ? M(l.credit) : ""}</td></tr>`).join("")}
-      <tr class="font-bold bg-slate-50"><td colspan="2">ລວມ</td><td class="num">${M(je.total_debit)}</td><td class="num">${M(je.total_credit)}</td></tr></tbody></table></div>`, { wide: true });
+      <tr class="font-bold bg-slate-50"><td colspan="2">ລວມ</td><td class="num">${M(je.total_debit)}</td><td class="num">${M(je.total_credit)}</td></tr></tbody></table></div>`, { wide: true }); { const pb = document.getElementById("je-print"); if (pb) pb.onclick = () => jePrint(id); }
   }
   function glPL() {
     const pl = Acc.plData();
@@ -789,8 +789,9 @@
   /* ================= 09 · FIXED ASSETS ================= */
   function assets() {
     const rows = Store.all("assets");
-    view().innerHTML = UI.pageHead("ຊັບສິນຖາວອນ", "Fixed Assets", `<button class="btn btn-ghost" id="run">▶ Run ຄ່າເສື່ອມ (ເດືອນນີ້)</button><button class="btn btn-ghost" id="aimport">Import</button><button class="btn btn-ghost" id="atransfer">ໂອນຊັບ</button><button class="btn btn-ghost" id="catchdep">Catch-up ເສື່ອມ</button><button class="btn btn-ghost" id="impair">ດ້ອຍຄ່າ</button><button class="btn btn-ghost" id="dispose">ຂາຍ/ກຳຈັດ</button><button class="btn btn-ghost" id="prepaid">ຄ່າລ່ວງໜ້າ</button><button class="btn btn-ghost" id="deferred">ລາຍຮັບລ່ວງໜ້າ</button><button class="btn btn-primary" id="add">+ ລົງທະບຽນຊັບ</button>`) +
+    view().innerHTML = UI.pageHead("ຊັບສິນຖາວອນ", "Fixed Assets", `<button class="btn btn-ghost" id="run">▶ Run ຄ່າເສື່ອມ (ເດືອນນີ້)</button><button class="btn btn-ghost" id="deprdocs">ໃບຄ່າເສື່ອມ</button><button class="btn btn-ghost" id="aimport">Import</button><button class="btn btn-ghost" id="atransfer">ໂອນຊັບ</button><button class="btn btn-ghost" id="catchdep">Catch-up ເສື່ອມ</button><button class="btn btn-ghost" id="impair">ດ້ອຍຄ່າ</button><button class="btn btn-ghost" id="dispose">ຂາຍ/ກຳຈັດ</button><button class="btn btn-ghost" id="prepaid">ຄ່າລ່ວງໜ້າ</button><button class="btn btn-ghost" id="deferred">ລາຍຮັບລ່ວງໜ້າ</button><button class="btn btn-primary" id="add">+ ລົງທະບຽນຊັບ</button>`) +
       UI.table([{ h: "ຊື່", key: "name" }, { h: "ໝວດ", key: "category" }, { h: "ຕົ້ນທຶນ", cls: "num", render: r => M(r.cost) }, { h: "ເສື່ອມສະສົມ", cls: "num", render: r => M(r.acc_dep) }, { h: "NBV", cls: "num", render: r => M(Number(r.cost) - Number(r.acc_dep)) }, { h: "ອາຍຸ(ເດືອນ)", key: "life_months" }, { h: "ສະຖານະ", render: r => UI.statusBadge(r.status) }], rows);
+    view().querySelector("#deprdocs").onclick = () => depreciationDocsModal();
     view().querySelector("#dispose").onclick = () => disposeModal();
     view().querySelector("#impair").onclick = () => impairModal();
     view().querySelector("#catchdep").onclick = () => catchDepModal();
@@ -2206,8 +2207,38 @@
     { label: "Stock ຍົກມາ (Opening)", dr: ["INV"], cr: ["OBE"] }
   ];
   function saveSplit(clean) { if (Store.get("settings", "posting_split")) Store.remove("settings", "posting_split"); Store.insert("settings", Object.assign({ id: "posting_split" }, clean)); }
+  // show the Dr/Cr a posting WOULD create (run on a copy of the data), then post for real on confirm
+  function previewPost(title, run, proceed) {
+    const sim = PostMon.simulate(run);
+    const rows = sim.entries.map(j => `<div class="mb-3"><div class="hint mb-1">${E(j.memo)}</div><table class="data"><thead><tr><th>ບັນຊີ</th><th class="num">Dr</th><th class="num">Cr</th></tr></thead><tbody>${j.lines.map(l => `<tr><td>${E(l.account + " " + String(l.name || "").replace(l.account + " ", ""))}</td><td class="num">${l.debit ? M(l.debit) : ""}</td><td class="num">${l.credit ? M(l.credit) : ""}</td></tr>`).join("")}</tbody></table></div>`).join("");
+    UI.modal("ເບິ່ງ Journal ກ່ອນລົງບັນຊີ · " + title, `${sim.ok ? "" : `<p class="mb-3" style="color:#b91c1c">⚠ ລົງບັນຊີບໍ່ໄດ້: ${E(sim.error)}</p>`}${rows || (sim.ok ? '<p class="hint">ບໍ່ມີ Journal</p>' : "")}
+      <div class="flex justify-end gap-2 mt-3"><button class="btn btn-ghost" data-c>ປິດ</button>${sim.ok ? '<button class="btn btn-primary" id="pp-go">ລົງບັນຊີ</button>' : ""}</div>`, { wide: true });
+    const go = document.getElementById("pp-go"); if (go) go.onclick = () => { document.querySelectorAll("[data-c]").forEach(b => b.click()); proceed(); };
+  }
+  function grnPrint(id) {
+    const g = Store.get("grns", id); if (!g) return;
+    const po = Store.get("purchase_orders", g.po_id) || {}, v = Store.get("vendors", po.vendor_id) || {};
+    const rows = Store.where("grn_lines", l => l.grn_id === id).map((l, i) => { const pl = Store.get("po_lines", l.po_line_id) || {}, it = Store.get("items", pl.item_id) || {}; return [`${i + 1}. ${E(pl.description || it.name || "")}`, l.qty + " " + E(it.uom || ""), M(l.unit_cost), M(l.qty * l.unit_cost)]; });
+    proPrint("GRN " + g.number, { docTitle: "ໃບຮັບສິນຄ້າ / GOODS RECEIPT NOTE", meta: [["ເລກທີ", g.number], ["ວັນທີ", UI.fmtDate(g.date)], ["ອ້າງອີງ PO", po.number || "-"]], party: { title: "ຜູ້ສະໜອງ / Vendor", name: v.name || "-", sub: "" },
+      cols: ["ລາຍການ", "ຈຳນວນຮັບ", "ລາຄາ", "ລວມ"], rows, totals: [["ມູນຄ່າລວມ", M(g.total), true]], note: g.note, signLabels: ["ຜູ້ຮັບເຄື່ອງ / ຄັງ", "ຜູ້ສົ່ງ / Vendor"] });
+  }
+  function jePrint(id) {
+    const je = Store.get("journal_entries", id); if (!je) return;
+    const rows = Store.where("journal_lines", l => l.je_id === id).map(l => [E(l.account + " " + String(l.account_name || "").replace(l.account + " ", "")), l.debit ? M(l.debit) : "", l.credit ? M(l.credit) : ""]);
+    proPrint("JE " + je.number, { docTitle: "ໃບສຳຄັນບັນຊີ / JOURNAL VOUCHER", meta: [["ເລກທີ", je.number], ["ວັນທີ", UI.fmtDate(je.date)], ["ແຫຼ່ງ", je.source_type || "-"]], party: { title: "ລາຍລະອຽດ", name: je.memo || "", sub: "ຜູ້ລົງບັນຊີ: " + (je.posted_by || "-") },
+      cols: ["ບັນຊີ", "Dr", "Cr"], rows, totals: [["ລວມ", M(je.total_debit), true]], signLabels: ["ຜູ້ກຽມ", "ຜູ້ກວດ / ອະນຸມັດ"] });
+  }
+  // "ໃບຄ່າເສື່ອມ": every depreciation journal, one click to open / print
+  function depreciationDocsModal() {
+    const jes = Store.all("journal_entries").filter(j => /^DEPR/.test(j.source_type || "")).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    UI.modal("ໃບຄ່າເສື່ອມລາຄາ", `<div class="tbl-wrap"><table class="data"><thead><tr><th>ເລກທີ</th><th>ວັນທີ</th><th>ລາຍລະອຽດ</th><th class="num">ຍອດ</th><th></th></tr></thead><tbody>${jes.map(j => `<tr><td>${E(j.number)}</td><td>${E(j.date)}</td><td>${E(j.memo)}</td><td class="num">${M(j.total_debit)}</td><td><button class="btn btn-ghost btn-sm" data-pj="${j.id}">ພິມ</button></td></tr>`).join("") || '<tr><td colspan="5" class="text-center text-slate-400 py-4">ຍັງບໍ່ມີ</td></tr>'}</tbody></table></div>`, { wide: true });
+    document.querySelectorAll("[data-pj]").forEach(b => b.onclick = () => jePrint(b.dataset.pj));
+  }
+  window.addEventListener("click", e => { const g = e.target.closest && e.target.closest(".grn-print"); if (g) grnPrint(g.dataset.id); });
   function postingMonitorModal() {
-    const h = PostMon.health(), src = PostMon.bySource(30), snaps = PostMon.snapshots(), hist = PostMon.ruleHistory();
+    const h = PostMon.health(), src = PostMon.bySource(30), snaps = PostMon.snapshots(), hist = PostMon.ruleHistory(), errs = PostMon.errors();
+    const dimName = { branch: "ສາຂາ", project: "ໂຄງການ" }, dimRows = k => PostMon.plBy(k).filter(r => r.value);
+    const dimHtml = ["branch", "project"].map(k => { const r = dimRows(k); return r.length ? `<h4 class="font-semibold mb-2 text-sm">ກຳໄລ-ຂາດທຶນ ຕາມ${dimName[k]}</h4><table class="data mb-4"><thead><tr><th>${dimName[k]}</th><th class="num">ລາຍຮັບ</th><th class="num">ຄ່າໃຊ້ຈ່າຍ</th><th class="num">ກຳໄລ</th></tr></thead><tbody>${r.map(x => `<tr><td>${E((k === "project" ? (Store.get("projects", x.value) || {}).name : x.value) || x.value)}</td><td class="num">${M(x.revenue)}</td><td class="num">${M(x.expense)}</td><td class="num">${M(x.profit)}</td></tr>`).join("")}</tbody></table>` : ""; }).join("");
     const ok = (b, t) => `<span class="badge ${b ? "green" : "red"}">${b ? "✓" : "⚠"} ${t}</span>`;
     UI.modal("ຕິດຕາມການລົງບັນຊີ", `<div class="grid sm:grid-cols-2 gap-3 mb-4">
         <div class="card p-4"><div class="hint">Journal ທັງໝົດ</div><div class="text-2xl font-bold">${h.journals}</div>${ok(!h.unbalanced.length, h.unbalanced.length ? "ບໍ່ດຸ່ນ: " + h.unbalanced.join(", ") : "ທຸກ Journal ດຸ່ນ (Dr = Cr)")}</div>
@@ -2215,14 +2246,21 @@
       <h4 class="font-semibold mb-2 text-sm">ບັນຊີຍ່ອຍ ທຽບ ບັນຊີແຍກປະເພດ</h4>
       <table class="data mb-4"><thead><tr><th>ລາຍການ</th><th class="num">ບັນຊີຍ່ອຍ</th><th class="num">ບັນຊີແຍກປະເພດ</th><th class="num">ຕ່າງ</th></tr></thead><tbody>${h.subledgers.map(s => `<tr><td>${E(s.name)}</td><td class="num">${M(s.subledger)}</td><td class="num">${M(s.gl)}</td><td class="num" style="color:${s.ok ? "#15803d" : "#b91c1c"}">${s.ok ? "✓" : M(s.diff)}</td></tr>`).join("")}</tbody></table>
       <h4 class="font-semibold mb-2 text-sm">ຄິວທີ່ຕ້ອງຈັດການ</h4>
+      <div class="flex gap-2 mb-2"><button class="btn btn-ghost btn-sm" id="pm-retry-pos">ລອງດຶງ POS ອີກ</button><button class="btn btn-ghost btn-sm" id="pm-retry-api">ລອງດຶງ API ອີກ</button></div>
+      ${errs.length ? `<table class="data mb-2"><tbody>${errs.slice(0, 8).map(x => `<tr><td>${E(x.ts.slice(5, 16).replace("T", " "))}</td><td>${E(x.by)}</td><td>${E(x.fn)}</td><td>${E(x.msg)}</td></tr>`).join("")}</tbody></table><button class="btn btn-ghost btn-sm mb-3" id="pm-clear">ລ້າງຄິວຂໍ້ຜິດພາດ (${errs.length})</button>` : '<p class="hint mb-2">ບໍ່ມີ Post ທີ່ລົ້ມເຫຼວ</p>'}
       <p class="text-sm mb-4">POS ຕິດຂັດ <b>${h.inbox.pos_blocked}</b> · POS ລໍກວດ <b>${h.inbox.pos_held}</b> · API ຕິດຂັດ <b>${h.inbox.api_blocked}</b> <span class="hint">(ແກ້ໃນໜ້າ "ຮັບຈາກ POS" / Settings › API)</span></p>
+      ${dimHtml}
       <h4 class="font-semibold mb-2 text-sm">Journal ແຍກຕາມໂມດູນ (30 ວັນ)</h4>
       <table class="data mb-4"><tbody>${src.map(s => `<tr><td>${E(s.source)}</td><td class="num">${s.count}</td><td class="num">${M(s.total)}</td></tr>`).join("") || '<tr><td class="hint">ຍັງບໍ່ມີ</td></tr>'}</tbody></table>
       <h4 class="font-semibold mb-2 text-sm">ປິດງວດ (ເກັບ Trial Balance ກ່ອນ ແລ້ວລັອກ)</h4>
       <div class="flex gap-2 mb-2"><input class="input" type="date" id="pm-date"><button class="btn btn-primary btn-sm" id="pm-close">ປິດງວດ</button></div>
       ${snaps.length ? `<table class="data mb-4"><tbody>${snaps.map(s => `<tr><td>${E(s.date)}</td><td class="num">Dr ${M(s.dr)}</td><td>${E(s.by)} · ${E((s.taken_at || "").slice(0, 16).replace("T", " "))}</td></tr>`).join("")}</tbody></table>` : '<p class="hint mb-4">ຍັງບໍ່ເຄີຍປິດງວດ</p>'}
       <h4 class="font-semibold mb-2 text-sm">ປະຫວັດການປ່ຽນກົດລົງບັນຊີ (${hist.length})</h4>
-      <p class="hint">${hist.length ? hist.slice(0, 5).map(x => E(x.ts.slice(0, 16).replace("T", " ")) + " · " + E(x.by)).join("<br>") : "ຍັງບໍ່ມີການປ່ຽນ (ໃຊ້ກົດເລີ່ມຕົ້ນ)"}</p>`, { wide: true });
+      <p class="hint">${hist.length ? hist.slice(0, 5).map((x, i) => E(x.ts.slice(0, 16).replace("T", " ")) + " · " + E(x.by) + (x.note ? " · " + E(x.note) : "") + ` <button class="btn btn-ghost btn-sm" data-rv="${i}">ກູ້ຄືນ</button>`).join("<br>") : "ຍັງບໍ່ມີການປ່ຽນ (ໃຊ້ກົດເລີ່ມຕົ້ນ)"}</p>`, { wide: true });
+    const rp = document.getElementById("pm-retry-pos"); if (rp) rp.onclick = async () => { try { const r = await Posin.sync({ role: currentRole() }); UI.toast("POS: ລົງ " + r.posted + " · ຕິດ " + r.blocked, r.blocked ? "warn" : "ok"); postingMonitorModal(); } catch (e) { UI.toast(e.message, "err"); } };
+    const ra = document.getElementById("pm-retry-api"); if (ra) ra.onclick = async () => { try { const r = await ExtIn.pull(); UI.toast("API: ລົງ " + r.posted + " · ຕິດ " + r.blocked, r.blocked ? "warn" : "ok"); postingMonitorModal(); } catch (e) { UI.toast(e.message, "err"); } };
+    const pc = document.getElementById("pm-clear"); if (pc) pc.onclick = () => { PostMon.clearErrors(); postingMonitorModal(); };
+    document.querySelectorAll("[data-rv]").forEach(b => b.onclick = () => UI.confirmDialog("ກູ້ຄືນກົດລົງບັນຊີເວີຊັນນີ້? (Journal ເກົ່າບໍ່ປ່ຽນ)", () => { try { PostMon.restoreRules(Number(b.dataset.rv)); UI.toast("ກູ້ຄືນແລ້ວ", "ok"); postingMonitorModal(); } catch (e) { UI.toast(e.message, "err"); } }));
     const cb = document.getElementById("pm-close");
     if (cb) cb.onclick = () => { const d = document.getElementById("pm-date").value; if (!d) return UI.toast("ເລືອກວັນທີ", "warn"); UI.confirmDialog("ປິດງວດ " + d + "? ຈະເກັບ Trial Balance ແລ້ວລັອກ — ກ່ອນວັນນີ້ ລົງ/ແກ້ບໍ່ໄດ້ອີກ", () => { try { PostMon.closePeriod(d); UI.toast("ປິດງວດແລ້ວ", "ok"); postingMonitorModal(); } catch (e) { UI.toast(e.message, "err"); } }); };
   }
@@ -3881,7 +3919,7 @@
 
   async function init() {
     document.addEventListener("click", e => document.querySelectorAll("details.more-menu[open]").forEach(d => { if (!d.contains(e.target) || e.target.closest(".more-pop .btn")) d.removeAttribute("open"); }));
-    window.AppCtx = { userLabel: () => { const u = currentUser(); return u ? u.name : currentRole(); }, currentUserId: () => (currentUser() || {}).id || "", currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
+    window.AppCtx = { proPrint, userLabel: () => { const u = currentUser(); return u ? u.name : currentRole(); }, currentUserId: () => (currentUser() || {}).id || "", currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
     installGates(); buildNav(); setupSearch(); renderUserChip();
     const ub = document.getElementById("userBtn"); if (ub) ub.onclick = userSwitchModal;
     document.getElementById("menuBtn").onclick = () => document.getElementById("sidebar").classList.toggle("-translate-x-full");

@@ -115,7 +115,7 @@
 
   /* ---------- Journal ---------- */
   // lines: [{account: code, debit, credit, memo}]
-  function postJournal({ date, source_type, source_id, memo, lines }) {
+  function postJournal({ date, source_type, source_id, memo, lines, dim }) {
     // every line must hit a real, postable account with a non-negative amount (the form UIs enforce this, the engine must too)
     (lines || []).forEach(l => {
       const a = acc(l.account);
@@ -153,7 +153,7 @@
       number: nextNumber("JE", "journal_entries", date),
       date: date || new Date().toISOString().slice(0, 10),
       source_type, source_id, memo: memo || "",
-      total_debit: td, total_credit: tc, status: "posted", posted_by: who(),
+      total_debit: td, total_credit: tc, status: "posted", posted_by: who(), rule_ver: ((Store.get("settings", "posting_history") || {}).items || []).length, dim: dim && Object.keys(dim).some(k => dim[k]) ? dim : undefined,
       created_at: new Date().toISOString()
     });
     cleaned.forEach(l => Store.insert("journal_lines", { je_id: je.id, account: l.account, account_name: l.account_name, debit: l.debit, credit: l.credit, memo: l.memo }));
@@ -229,7 +229,7 @@
       jl.push({ account: ac[1], debit: 0, credit: round(cogsBy[k]), memo: "ຕັດສິນຄ້າ (FIFO)" });
     });
 
-    const je = postJournal({ date: inv.date, source_type: "INVOICE", source_id: inv.id, memo: "Invoice " + inv.number, lines: jl });
+    const je = postJournal({ date: inv.date, source_type: "INVOICE", source_id: inv.id, memo: "Invoice " + inv.number, lines: jl, dim: { project: inv.project_id, cc: inv.cost_centre_id, branch: inv.branch } });
     Store.update("invoices", inv.id, Object.assign({ status: "posted", je_id: je.id, paid: 0 }, t));
     return je;
   }
@@ -434,18 +434,18 @@
 
   /* ---------- Stock adjustment ---------- */
   // kind "usage" = ingredients/goods consumed in the business (→ COGS 5100); default = loss / count difference (→ general expense)
-  function stockAdjust({ item_id, qtyDelta, reason, date, kind }) {
+  function stockAdjust({ item_id, qtyDelta, reason, date, kind, expense, ref }) {
     assertOpen(date);
     const it = Store.get("items", item_id);
     const cost = Number(it.avg_cost) || 0;
     const value = round(Math.abs(qtyDelta) * cost);
-    const exp = kind === "usage" ? PA("COGS") : PA("GEN_EXP");
+    const exp = expense || (kind === "usage" ? PA("COGS") : PA("GEN_EXP"));
     if (qtyDelta >= 0) recordMove(item_id, "in", qtyDelta, cost, "ADJUST", "", date);
     else recordMove(item_id, "out", -qtyDelta, cost, "ADJUST", "", date);
     const jl = qtyDelta >= 0
       ? [{ account: PA("INV"), debit: value, credit: 0, memo: "ປັບເພີ່ມ stock" }, { account: exp, debit: 0, credit: value, memo: reason || "ປັບ stock" }]
       : [{ account: exp, debit: value, credit: 0, memo: reason || "ປັບຫຼຸດ stock" }, { account: PA("INV"), debit: 0, credit: value, memo: "ປັບຫຼຸດ stock" }];
-    if (value) postJournal({ date: date || new Date().toISOString().slice(0, 10), source_type: "STOCK_ADJ", source_id: item_id, memo: "ປັບ stock " + it.name, lines: jl });
+    if (value) postJournal({ date: date || new Date().toISOString().slice(0, 10), source_type: "STOCK_ADJ", source_id: ref || item_id, memo: (ref ? ref + " · " : "") + "ປັບ stock " + it.name, lines: jl });
     audit("adjust", "items", item_id, (qtyDelta >= 0 ? "+" : "") + qtyDelta + " " + (reason || ""));
   }
 
