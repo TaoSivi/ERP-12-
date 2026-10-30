@@ -60,9 +60,12 @@
   const paper = m => `<div style="color:${C.ink}">${letterhead(m)}${metaGrid(m)}${m.note ? `<div style="background:${C.soft};border-radius:14px;padding:10px 14px;font-size:14px;margin-bottom:8px"><span style="color:${C.mute}">ໝາຍເຫດ:</span> <b>${E(m.note)}</b></div>` : ""}${lines(m)}${journal(m)}${stamps(m)}${logTable(m)}</div>`;
 
   const stepper = m => !m.stepper ? "" : `<div class="dv-stepper">${m.stepper.map((s, i) => `<div class="dv-st ${s.state}"><span class="dv-dot">${s.state === "done" ? "✓" : s.state === "bad" ? "✕" : i + 1}</span><span class="dv-lb">${E(s.label)}</span></div>`).join("")}</div>`;
+  const attachCard = a => { const n = window.AppCtx && AppCtx.docsCount ? AppCtx.docsCount(a.ref[0], a.ref[1]) : 0;
+    return `<div class="dv-card"><div class="dv-h">ເອກະສານແນບ (ຮູບ / ໄຟລ໌)</div>${a.hint ? `<div class="hint mb-2">📎 ${E(a.hint)}</div>` : ""}<button class="btn btn-ghost btn-block" id="dv-attach">📎 ແນບ / ເບິ່ງ (${n})</button></div>`; };
   const side = m => `<div class="dv-side">
     <div class="dv-card"><div class="dv-h">ສະຖານະ</div><span class="chip ${({ ok: "s-done", wait: "s-wait", bad: "s-bad", draft: "s-draft" })[m.status.tone] || "s-draft"}">${E(m.status.label)}</span>
       ${m.notice ? `<div class="dv-notice">${m.notice}</div>` : ""}</div>
+    ${m.attach ? attachCard(m.attach) : ""}
     <div class="dv-card"><div class="dv-h">ດຳເນີນການ</div><div class="dv-actions">${m.actions || ""}</div></div>
     ${(m.steps || []).length ? `<div class="dv-card"><div class="dv-h">ຜູ້ອະນຸມັດແຕ່ລະຂັ້ນ</div>${m.steps.map((s, i) => `<div class="dv-step ${s.state}"><span class="dv-n">${i + 1}</span><div><b>${E(s.label)}${s.need > 1 ? " ×" + s.need : ""}</b>
       <div class="hint">${s.signed.length ? s.signed.map(d => "✓ " + E(d.name || d.role) + " " + day(d.at)).join("<br>") : s.state === "cur" ? "⏳ ກຳລັງລໍ" : "ລໍຄິວ"}</div></div></div>`).join("")}<div class="hint mt-2">ຕັ້ງຄົນອະນຸມັດ: ຕັ້ງຄ່າ › ຂັ້ນອະນຸມັດ</div></div>` : ""}</div>`;
@@ -70,7 +73,8 @@
   function page(m) { return `<div class="dv-top">${m.back ? `<button class="btn btn-ghost" id="dv-back">← ${E(m.back)}</button>` : ""}${stepper(m)}</div>
     <div class="dv-grid"><div class="dv-paper" id="dv-paper">${paper(m)}</div>${side(m)}</div>`; }
   function open(m, onMount) {
-    UI.modal(m.titles[0] + " · " + m.number, page(m), { wide: true, onMount: (bd, close) => { const b = bd.querySelector("#dv-back"); if (b && m.onBack) b.onclick = () => { close(); m.onBack(); }; if (onMount) onMount(bd, close); } });
+    UI.modal(m.titles[0] + " · " + m.number, page(m), { wide: true, onMount: (bd, close) => { const b = bd.querySelector("#dv-back"); if (b && m.onBack) b.onclick = () => { close(); m.onBack(); }; const at = bd.querySelector("#dv-attach"); if (at && m.attach) at.onclick = () => AppCtx.attachDocs(m.attach.ref[0], m.attach.ref[1], m.attach.label || m.number);
+      if (onMount) onMount(bd, close); } });
   }
   function print(m) { if (window.AppCtx && AppCtx.printHTML) AppCtx.printHTML(m.number + " " + m.titles[0], paper(m)); }
 

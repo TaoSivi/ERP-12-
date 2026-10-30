@@ -234,6 +234,7 @@
   }
 
   /* =================== DETAIL =================== */
+  const ATT_HINT = { ADV: "ໃບຂໍເບີກ / ຫຼັກຖານເຫດຜົນ", CLR: "ໃບບິນຕົວຈິງທັງໝົດທີ່ໃຊ້", PAY: "ໃບເກັບເງິນຜູ້ສະໜອງ", EXP: "ໃບບິນ / ໃບຮັບເງິນ", PRJ: "ໃບບິນ + ຮູບງານ" };
   function detail(id) {
     const r = Store.get("requests", id), n = Flows.nextAction(r, role()), lines = Flows.linesOf(id);
     const adv = r.advance_id ? Store.get("requests", r.advance_id) : null;
@@ -252,6 +253,7 @@
           ${Flows.docsOf(r).length ? `<div class="card p-5" id="docs-card">${docsPanel(Flows.docsOf(r), r.stage === "draft" || r.stage === "approval")}${r.stage === "draft" || r.stage === "approval" ? `<button class="btn btn-ghost btn-sm mt-3" id="docs-save">ບັນທຶກເອກະສານແນບ</button>` : ""}</div>` : ""}
         </div>
         <div class="space-y-4 min-w-0">
+          <div class="card p-5"><div class="section-title">ເອກະສານແນບ (ຮູບ / ໄຟລ໌)</div><div class="hint mb-2">📎 ${E(ATT_HINT[r.type] || "ໃບບິນ / ໃບຮັບເງິນ / ຮູບຫຼັກຖານ")}</div><button class="btn btn-ghost btn-block" id="rq-attach">📎 ແນບ / ເບິ່ງ (${AppCtx.docsCount("requests", r.id)})</button></div>
           <div class="card p-5"><div class="section-title">ປະຫວັດ</div><ul class="timeline">${Flows.history(id).map(h => `<li><b>${E(DID[h.action] || h.action)}</b> · ${E(h.role)}${h.note ? `<div class="text-slate-600">${E(h.note)}</div>` : ""}<div class="t-when">${E(h.ts.slice(0, 16).replace("T", " "))}</div></li>`).join("")}</ul></div>
           <div class="card p-5"><div class="section-title">ການລົງບັນຊີ</div><div class="space-y-2">${BOOK[r.type].map(b => `<div class="booking">📒 <span>${E(b)}</span></div>`).join("")}</div></div>
         </div>
@@ -295,6 +297,7 @@
     on("#nx-refund", () => act(() => Flows.receiveRefund(r.id, me, { bank_id: q("#nx-bank").value, date: q("#nx-date").value }), "ຮັບເງິນຄືນ & ລົງບັນຊີແລ້ວ"));
     on("#nx-clr", () => newRequest("CLR"));
     on("#doc-print", () => ReqDoc.print(r));
+    on("#rq-attach", () => AppCtx.attachDocs("requests", r.id, r.number));
     on("#docs-save", () => act(() => Flows.setDocs(r.id, readDocs(view().querySelector("#docs-card")), me), "ບັນທຶກເອກະສານແນບແລ້ວ"));
   }
 

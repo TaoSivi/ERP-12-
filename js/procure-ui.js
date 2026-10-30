@@ -163,9 +163,32 @@
           <div id="next">${nextBox(c, s, n)}</div>
           ${itemsCard(s)}
         </div>
-        <div class="space-y-4 min-w-0">${trailCard(s)}${bookingCard(s)}</div>
+        <div class="space-y-4 min-w-0">${filesCard(c, s)}${trailCard(s)}${bookingCard(s)}</div>
       </div>`;
     bindNext(c, s, n);
+    bindFiles(c, s);
+  }
+
+  // what to attach at each step (the current step is highlighted) + every printable paper of this case
+  const FILE_HINT = { draft: "ຮູບ/ໃບສະເໜີຂອງສິ່ງທີ່ຕ້ອງການຊື້", pr_approval: "ຮູບ/ໃບສະເໜີຂອງສິ່ງທີ່ຕ້ອງການຊື້", sourcing: "ໃບສະເໜີລາຄາຂອງຜູ້ສະໜອງ (ຮູບ / PDF)", po_approval: "ສັນຍາ / ໃບຢືນຢັນຈາກຜູ້ສະໜອງ", receiving: "ຮູບເຄື່ອງ + ໃບສົ່ງເຄື່ອງ", invoicing: "ສຳເນົາບິນຂອງຜູ້ສະໜອງ", paying: "ສະລິບໂອນເງິນ" };
+  function filesCard(c, s) {
+    const n = AppCtx.docsCount("purchase_requisitions", c.id), hint = FILE_HINT[s.stage];
+    return `<div class="card p-5"><div class="section-title">ເອກະສານແນບ & ພິມ</div>
+      ${hint ? `<div class="booking mb-2">📎 <span>ຂັ້ນນີ້ຄວນແນບ: <b>${E(hint)}</b></span></div>` : ""}
+      <button class="btn btn-ghost btn-block mb-2" id="pc-attach">📎 ແນບ / ເບິ່ງໄຟລ໌ ແລະ ຮູບ (${n})</button>
+      <div class="flex flex-wrap gap-2"><button class="btn btn-ghost btn-sm" id="pc-pr">🖨 ໃບຂໍຊື້</button>${s.po ? '<button class="btn btn-ghost btn-sm" id="pc-po">🖨 ໃບສັ່ງຊື້ (PO)</button>' : ""}${s.bills.map(b => `<button class="btn btn-ghost btn-sm" data-pbill="${b.id}">🖨 ບິນ ${E(b.number)}</button>`).join("")}</div>
+      <div class="hint mt-2">ໃບຮັບເຄື່ອງ (GRN) ພິມໄດ້ຈາກການ "ລົງບັນຊີ" ດ້ານລຸ່ມ</div></div>`;
+  }
+  function bindFiles(c, s) {
+    const on = (sel, fn) => { const el = view().querySelector(sel); if (el) el.onclick = fn; };
+    on("#pc-attach", () => AppCtx.attachDocs("purchase_requisitions", c.id, "ຈັດຊື້ " + c.number));
+    on("#pc-po", () => AppCtx.poPrint(s.po));
+    on("#pc-pr", () => AppCtx.proPrint("PR " + c.number, { docTitle: "ໃບຂໍຊື້ / PURCHASE REQUEST", meta: [["ເລກທີ", c.number], ["ວັນທີ", UI.fmtDate(c.date)], ["ຕ້ອງການ", c.need_by ? UI.fmtDate(c.need_by) : "-"]],
+      party: { title: "ຜູ້ຂໍ / Requester", name: c.requester || "", sub: c.purpose || "" }, cols: ["ລາຍການ", "ຈຳນວນ", "ລາຄາ", "ລວມ"],
+      rows: s.lines.map((l, i) => [(i + 1) + ". " + E(l.description), String(l.qty), M(l.price), M(l.line_total != null ? l.line_total : l.qty * l.price)]), totals: [["ຍອດປະມານ", M(s.est), true]], note: c.justification || "", signLabels: ["ຜູ້ຂໍ", "ຜູ້ອະນຸມັດ"] }));
+    view().querySelectorAll("[data-pbill]").forEach(b => b.onclick = () => { const bl = Store.get("bills", b.dataset.pbill), v = Store.get("vendors", bl.vendor_id) || {};
+      AppCtx.proPrint("Bill " + bl.number, { docTitle: "ໃບບິນຊື້ / VENDOR BILL", meta: [["ເລກທີ", bl.number], ["ເລກບິນຜູ້ສະໜອງ", bl.vendor_ref || "-"], ["ວັນທີ", UI.fmtDate(bl.date)]], party: { title: "ຜູ້ສະໜອງ / Vendor", name: v.name || "-", sub: "" },
+        cols: ["ລາຍການ", "ຈຳນວນ", "ລາຄາ", "ລວມ"], rows: Store.where("bill_lines", l => l.bill_id === bl.id).map((l, i) => [(i + 1) + ". " + E(l.description || ""), String(l.qty), M(l.price), M(l.qty * l.price)]), totals: [["ລວມ (ລວມ VAT)", M(bl.total), true]], signLabels: ["ຜູ້ບັນທຶກ", "ຜູ້ອະນຸມັດ"] }); });
   }
 
   function chainHtml(c, s) {

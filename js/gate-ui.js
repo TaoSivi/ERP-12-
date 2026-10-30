@@ -25,7 +25,7 @@
     if ((d.status === "approval" || d.status === "failed") && mine) actions += `<button class="btn btn-ghost btn-block" id="dv-cancel">ຍົກເລີກເອກະສານ</button>`;
     actions += `<button class="btn btn-ghost btn-block" id="dv-print">🖨 ພິມ</button>`;
     return { titles: D.title, number: d.number, date: d.date, status: { label: Gate.STAGE[d.status], tone: TONE[d.status] }, stepper, meta: body.meta.concat([["ຜູ້ຂໍ", d.requester_name ? d.requester_name + " (" + d.requester_role + ")" : d.requester_role]]),
-      cols: body.cols, rows: body.rows, totals: body.totals, note: body.note, journal, journalTitle, steps, requester: { name: d.requester_name, role: d.requester_role, at: first && first.at }, log: d.log || [],
+      attach: { ref: ["gate_docs", d.id], label: d.number, hint: D.attachHint }, cols: body.cols, rows: body.rows, totals: body.totals, note: body.note, journal, journalTitle, steps, requester: { name: d.requester_name, role: d.requester_role, at: first && first.at }, log: d.log || [],
       notice: d.status === "failed" ? "⚠ " + E(d.error) : chk && !chk.ok ? E(chk.why) : chk && chk.ok ? "ທ່ານມີສິດອະນຸມັດ — ກວດລາຍການແລ້ວກົດອະນຸມັດ" : "", actions, back: "ລາຍການເອກະສານ", onBack: () => { location.hash = "#/gate"; } };
   }
 

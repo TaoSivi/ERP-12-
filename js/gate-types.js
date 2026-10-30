@@ -8,6 +8,7 @@
   const nameOf = (coll, id, f) => ((Store.get(coll, id) || {})[f || "name"]) || "-";
 
   Gate.register("GRN", {
+    attachHint: "ຮູບເຄື່ອງທີ່ໄດ້ຮັບ + ໃບສົ່ງເຄື່ອງ",
     label: "ໃບຮັບສິນຄ້າ (GRN)", prefix: "GRQ", title: ["ໃບຂໍຮັບສິນຄ້າເຂົ້າສາງ", "GOODS RECEIPT REQUEST"],
     lines(p) { return (p.receipt || []).filter(r => Number(r.qty) > 0).map(r => { const l = Store.get("po_lines", r.po_line_id) || {}; return { l, qty: Number(r.qty) }; }); },
     amount(p) { return this.lines(p).reduce((s, x) => s + x.qty * Number(x.l.price || 0), 0); },
@@ -21,6 +22,7 @@
   });
 
   Gate.register("RCPT", {
+    attachHint: "ສະລິບໂອນ / ຫຼັກຖານການຮັບເງິນ",
     label: "ໃບຮັບເງິນ (ຮັບຊຳລະ Invoice)", prefix: "RQ", title: ["ໃບຂໍບັນທຶກຮັບເງິນ", "RECEIPT REQUEST"],
     amount: p => Number(p.amount) || 0,
     validate(p) { if (!(Number(p.amount) > 0)) throw new Error("ໃສ່ຈຳນວນ"); },
@@ -33,6 +35,7 @@
   });
 
   Gate.register("PAYV", {
+    attachHint: "ໃບເກັບເງິນ + ສະລິບໂອນ",
     label: "ໃບຈ່າຍເງິນ (ຈ່າຍ Bill)", prefix: "PQ", title: ["ໃບຂໍຈ່າຍເງິນ Bill", "PAYMENT REQUEST"],
     amount: p => Number(p.amount) || 0,
     validate(p) { if (!(Number(p.amount) > 0)) throw new Error("ໃສ່ຈຳນວນ"); },
@@ -45,6 +48,7 @@
   });
 
   Gate.register("DEPR", {
+    attachHint: "ຕາຕະລາງຄ່າເສື່ອມ (ຖ້າມີ)",
     label: "ໃບຄ່າເສື່ອມລາຄາ", prefix: "DQ", title: ["ໃບອະນຸມັດຄ່າເສື່ອມລາຄາ", "DEPRECIATION APPROVAL"],
     amount: p => Number(p.amount) || 0,
     describe(p) {
@@ -56,6 +60,7 @@
   });
 
   Gate.register("PAYROLL", {
+    attachHint: "ໃບເງິນເດືອນ / ໃບລາຍຊື່ລົງລາຍເຊັນ",
     label: "ໃບເງິນເດືອນ", prefix: "SQ", title: ["ໃບອະນຸມັດເງິນເດືອນ", "PAYROLL APPROVAL"],
     amount: p => Number((Store.get("payroll", p.run_id) || {}).net_total) || 0,
     describe(p) {
@@ -79,6 +84,7 @@
   });
 
   Gate.register("PAYC", {
+    attachHint: "ບິນຜູ້ສະໜອງ + ສະລິບໂອນ",
     label: "ໃບຈ່າຍເງິນ (ຂະບວນຈັດຊື້)", prefix: "PC", title: ["ໃບຂໍຈ່າຍເງິນ ຕາມໃບບິນຈັດຊື້", "PURCHASE PAYMENT REQUEST"],
     amount: p => Number(p.amount) || 0,
     validate(p) { if (!(Number(p.amount) > 0)) throw new Error("ໃສ່ຈຳນວນເງິນ"); },
