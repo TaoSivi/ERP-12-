@@ -7,41 +7,43 @@
 
   /* ---------------- Navigation ---------------- */
   const NAV = [
-    { group: "ພາບລວມ", items: [
-      ["dashboard", "", "🏠 ໜ້າຫຼັກ"],
-      ["requests", "", "✍️ ຄຳຂໍ & ອະນຸມັດ"],
-      ["gate", "", "✅ ເອກະສານລໍອະນຸມັດ"],
-      ["mytasks", "", "✅ ວຽກຂອງຂ້ອຍ"],
-      ["disburse", "", "📤 ຂໍເບີກ"] ] },
-    { group: "ຂາຍ", items: [
-      ["pos", "", "🛒 ຂາຍໜ້າຮ້ານ (POS)"],
-      ["invoices", "", "🧾 Invoice & CN"],
-      ["customers", "", "👥 ລູກຄ້າ & ໃບສະເໜີ"] ] },
-    { group: "ຊື້ & ສາງ", items: [
-      ["procure", "", "📋 ຈັດຊື້ (ຂໍ → ຈ່າຍ)"],
-      ["bills", "", "📥 Bill & ຄ່າໃຊ້ຈ່າຍ"],
-      ["vendors", "", "🏭 ຜູ້ສະໜອງ & PO"],
-      ["inventory", "", "📦 ສິນຄ້າຄົງເຫຼືອ"] ] },
-    { group: "ເງິນ & ບັນຊີ", items: [
-      ["banking", "", "🏦 ທະນາຄານ & ເງິນສົດ"],
-      ["advances", "", "💵 ເງິນແຮ"],
-      ["posin", "", "🔗 ຮັບຈາກ POS"],
-      ["gl", "", "📗 ບັນຊີແຍກປະເພດ"],
-      ["assets", "", "🏗 ຊັບສິນຖາວອນ"],
-      ["budget", "", "📊 ງົບປະມານ"],
-      ["reports", "", "📈 ລາຍງານ"],
-      ["fs", "", "📑 ງົບການເງິນ"] ] },
-    { group: "ຄົນ & ລະບົບ", items: [
-      ["payroll", "", "💼 ເງິນເດືອນ & HR"],
-      ["usersadmin", "", "🔐 ຜູ້ໃຊ້ & ສິດ"],
-      ["departments", "", "🏢 ໂຄງສ້າງອົງກອນ"],
-      ["settings", "", "⚙️ ຕັ້ງຄ່າ"] ] },
-    { group: "ເອກະສານ (DMS)", adv: true, items: [
-      ["docs", "", "📁 ຈັດການເອກະສານ"],
-      ["announce", "", "📢 ແຈ້ງການ"],
-      ["tags", "", "🏷 Tags"],
-      ["workflows", "", "🔁 ຂະບວນການເອກະສານ"],
-      ["doctemplates", "", "📄 ແມ່ແບບເອກະສານ"] ] }
+    { group: "🏠 ພາບລວມ & ອະນຸມັດ", items: [
+      ["dashboard", "", "ໜ້າຫຼັກ"],
+      ["mytasks", "", "ວຽກຂອງຂ້ອຍ"],
+      ["gate", "", "ເອກະສານລໍອະນຸມັດ"],
+      ["requests", "", "ຄຳຂໍ & ອະນຸມັດ"] ] },
+    { group: "🛒 ຂາຍ", items: [
+      ["pos", "", "ຂາຍໜ້າຮ້ານ (POS)"],
+      ["invoices", "", "Invoice & CN (ໃບບິນຂາຍ)"],
+      ["customers", "", "ລູກຄ້າ & ໃບສະເໜີ"] ] },
+    { group: "📥 ຊື້ & ສາງ", items: [
+      ["procure", "", "ຈັດຊື້ (ຂໍ → ຮັບ → ຈ່າຍ)"],
+      ["vendors", "", "ຜູ້ສະໜອງ & ໃບສັ່ງຊື້ (PO)"],
+      ["bills", "", "Bill & ຄ່າໃຊ້ຈ່າຍ"],
+      ["disburse", "", "ຂໍເບີກ"],
+      ["inventory", "", "ສິນຄ້າຄົງເຫຼືອ & ເອກະສານສາງ"] ] },
+    { group: "🏦 ເງິນ", items: [
+      ["banking", "", "ທະນາຄານ & ເງິນສົດ"],
+      ["advances", "", "ເງິນແຮ"],
+      ["posin", "", "ຮັບຈາກ POS"] ] },
+    { group: "📗 ບັນຊີ & ລາຍງານ", items: [
+      ["gl", "", "ບັນຊີແຍກປະເພດ"],
+      ["assets", "", "ຊັບສິນຖາວອນ & ຄ່າເສື່ອມ"],
+      ["budget", "", "ງົບປະມານ"],
+      ["reports", "", "ລາຍງານ"],
+      ["fs", "", "ງົບການເງິນ"] ] },
+    { group: "👥 ຄົນ", items: [
+      ["payroll", "", "ເງິນເດືອນ & HR"],
+      ["departments", "", "ໂຄງສ້າງອົງກອນ"],
+      ["usersadmin", "", "ຜູ້ໃຊ້ & ສິດ"] ] },
+    { group: "⚙️ ລະບົບ", items: [
+      ["settings", "", "ຕັ້ງຄ່າ (ຂັ້ນອະນຸມັດ, API, ຜັງບັນຊີ)"] ] },
+    { group: "📁 ເອກະສານ (DMS)", adv: true, items: [
+      ["docs", "", "ຈັດການເອກະສານ"],
+      ["announce", "", "ແຈ້ງການ"],
+      ["tags", "", "Tags"],
+      ["workflows", "", "ຂະບວນການເອກະສານ"],
+      ["doctemplates", "", "ແມ່ແບບເອກະສານ"] ] }
   ];
   const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","mytasks","disburse","requests","gate","procure","invoices","bills","banking","advances","posin","gl","assets","budget","reports","fs","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","mytasks","disburse","requests","gate","procure","pos","customers","invoices","reports","docs","announce","tags","workflows","doctemplates"], Purchasing: ["dashboard","mytasks","disburse","requests","gate","procure","vendors","bills","inventory","reports","docs","announce","tags","workflows","doctemplates"], Warehouse: ["dashboard","mytasks","disburse","requests","gate","procure","inventory","reports","docs","announce","tags","workflows","doctemplates"], HR: ["dashboard","mytasks","disburse","requests","gate","procure","payroll","reports","docs","announce","tags","workflows","doctemplates"], Cashier: ["dashboard","mytasks","disburse","requests","gate","procure","pos","banking","advances","posin","reports","docs","announce","tags","workflows","doctemplates"], Manager: null, Auditor: ["dashboard","mytasks","requests","gate","procure","gl","reports","fs","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","mytasks","requests","gate","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
   // "Advanced mode" (Settings): shows the DMS menu and the niche accounting buttons (see css/styles.css .adv rules)
@@ -94,15 +96,23 @@
     }, true);
     new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) applyGates(n); }))).observe(document.body, { childList: true, subtree: true });
   }
+  // Menu groups fold/unfold; the choice is remembered, and the group holding the open page always opens.
+  const navClosed = () => { try { return JSON.parse(localStorage.getItem("st_nav_closed") || "[]"); } catch (e) { return []; } };
   function buildNav() {
-    const nav = document.getElementById("nav");
-    let html = NAV.map(g => {
+    const nav = document.getElementById("nav"), closed = navClosed();
+    nav.innerHTML = NAV.map((g, gi) => {
       if (g.adv && !advancedOn()) return "";
       const items = g.items.filter(([route]) => allowed(route));
       if (!items.length) return "";
-      return `<div class="nav-group">${E(g.group)}</div>` + items.map(([route, ico, label]) => `<a class="nav-item" href="#/${route}"><span>${E(label)}</span></a>`).join("");
+      return `<div class="nav-box ${closed.indexOf(gi) >= 0 ? "" : "open"}" data-g="${gi}"><button type="button" class="nav-group" aria-expanded="${closed.indexOf(gi) < 0}"><span>${E(g.group)}</span><i class="nav-chev"></i></button><div class="nav-sub">` +
+        items.map(([route, ico, label]) => `<a class="nav-item" href="#/${route}"><span>${E(label)}</span></a>`).join("") + `</div></div>`;
     }).join("");
-    nav.innerHTML = html;
+    nav.querySelectorAll(".nav-group").forEach(b => b.onclick = () => {
+      const box = b.parentNode, gi = Number(box.dataset.g), open = box.classList.toggle("open"), cl = navClosed().filter(x => x !== gi);
+      if (!open) cl.push(gi);
+      b.setAttribute("aria-expanded", open);
+      try { localStorage.setItem("st_nav_closed", JSON.stringify(cl)); } catch (e) {}
+    });
     buildBottomNav();
   }
   // phone-only tab bar: first 4 modules this role may open + "ເມນູ" (opens the full sidebar)
@@ -116,6 +126,8 @@
   function setActive(route) {
     document.querySelectorAll(".nav-item, .bn-item[href]").forEach(a =>
       a.classList.toggle("active", a.getAttribute("href") === "#/" + route));
+    const on = document.querySelector('#nav .nav-item.active'), box = on && on.closest(".nav-box");
+    if (box && !box.classList.contains("open")) { box.classList.add("open"); const g = box.querySelector(".nav-group"); if (g) g.setAttribute("aria-expanded", "true"); }
   }
 
   /* ---------------- Form helpers ---------------- */
