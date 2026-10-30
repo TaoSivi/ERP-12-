@@ -14,7 +14,6 @@
       ["gate", "", "ເອກະສານລໍອະນຸມັດ"],
       ["requests", "", "ຄຳຂໍ & ອະນຸມັດ"] ] },
     { group: "🛒 ຂາຍ", items: [
-      ["pos", "", "ຂາຍໜ້າຮ້ານ (POS)"],
       ["invoices", "", "Invoice & CN (ໃບບິນຂາຍ)"],
       ["customers", "", "ລູກຄ້າ & ໃບສະເໜີ"] ] },
     { group: "📥 ຊື້ & ສາງ", items: [
@@ -47,7 +46,7 @@
       ["workflows", "", "ຂະບວນການເອກະສານ"],
       ["doctemplates", "", "ແມ່ແບບເອກະສານ"] ] }
   ];
-  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","hub","mytasks","disburse","requests","gate","procure","invoices","bills","banking","advances","posin","gl","review","assets","budget","reports","fs","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","hub","mytasks","disburse","requests","gate","procure","pos","customers","invoices","reports","docs","announce","tags","workflows","doctemplates"], Purchasing: ["dashboard","hub","mytasks","disburse","requests","gate","procure","vendors","bills","inventory","reports","docs","announce","tags","workflows","doctemplates"], Warehouse: ["dashboard","hub","mytasks","disburse","requests","gate","procure","inventory","reports","docs","announce","tags","workflows","doctemplates"], HR: ["dashboard","hub","mytasks","disburse","requests","gate","procure","payroll","reports","docs","announce","tags","workflows","doctemplates"], Cashier: ["dashboard","hub","mytasks","disburse","requests","gate","procure","pos","banking","advances","posin","reports","docs","announce","tags","workflows","doctemplates"], Manager: null, Auditor: ["dashboard","hub","mytasks","requests","gate","procure","gl","review","reports","fs","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","hub","mytasks","requests","gate","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
+  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","hub","mytasks","disburse","requests","gate","procure","invoices","bills","banking","advances","posin","gl","review","assets","budget","reports","fs","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","hub","mytasks","disburse","requests","procure","customers","invoices","docs","announce"], Purchasing: ["dashboard","hub","mytasks","disburse","requests","gate","procure","vendors","bills","inventory","docs","announce"], Warehouse: ["dashboard","hub","mytasks","disburse","requests","procure","inventory","docs","announce"], HR: ["dashboard","hub","mytasks","disburse","requests","procure","payroll","departments","docs","announce"], Cashier: ["dashboard","hub","mytasks","disburse","requests","gate","procure","banking","advances","posin","docs","announce"], Manager: null, Auditor: ["dashboard","hub","mytasks","requests","gate","procure","gl","review","reports","fs","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","hub","mytasks","requests","gate","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
   // "Advanced mode" (Settings): shows the DMS menu and the niche accounting buttons (see css/styles.css .adv rules)
   function advancedOn() { const c = Store.get("settings", "company") || {}; return !!c.show_advanced; }
   function applyAdvanced() { document.body.classList.toggle("adv-on", advancedOn()); }
@@ -120,7 +119,7 @@
     if (window.Entry) Entry.viewAsRefresh();
   }
   // phone-only tab bar: first 4 modules this role may open + "ເມນູ" (opens the full sidebar)
-  const BOTTOM = [["dashboard", "home", "ໜ້າຫຼັກ"], ["hub", "receipt", "ເອກະສານ"], ["mytasks", "checkcircle", "ວຽກຂ້ອຍ"], ["invoices", "receipt", "Invoice"], ["bills", "inbox", "Bill"], ["pos", "cart", "POS"], ["inventory", "package", "ສິນຄ້າ"], ["reports", "trending", "ລາຍງານ"]];
+  const BOTTOM = [["dashboard", "home", "ໜ້າຫຼັກ"], ["hub", "receipt", "ເອກະສານ"], ["mytasks", "checkcircle", "ວຽກຂ້ອຍ"], ["invoices", "receipt", "Invoice"], ["bills", "inbox", "Bill"], ["inventory", "package", "ສິນຄ້າ"], ["reports", "trending", "ລາຍງານ"]];
   function buildBottomNav() {
     let bn = document.getElementById("bottomNav");
     if (!bn) { bn = document.createElement("nav"); bn.id = "bottomNav"; document.body.appendChild(bn); }
@@ -491,6 +490,16 @@
     const order = { draft: 0, pending: 1, posted: 2, partial: 3, paid: 4 }, at = order[status] == null ? 0 : order[status];
     return labels.map((l, i) => ({ label: l, state: status === "void" || status === "rejected" ? (i === 0 ? "done" : "wait") : i < at ? "done" : i === at ? "cur" : "wait" }));
   }
+  // receipts / payment vouchers of one document as a tab (shown faded when there are none yet)
+  function payTab(refType, refId, partyName, label, tone) {
+    const ps = Store.where("payments", x => x.ref_type === refType && x.ref_id === refId);
+    if (!ps.length) return { key: "pay", label, tone, ready: false };
+    const rec = x => x.type === "receive", docNo = (Store.get(refType === "INVOICE" ? "invoices" : "bills", refId) || {}).number;
+    return { key: "pay", label, tone, html: ps.map(x => DocView.paper({ titles: [rec(x) ? "ໃບຮັບເງິນ" : "ໃບຈ່າຍເງິນ", rec(x) ? "RECEIPT VOUCHER" : "PAYMENT VOUCHER"], number: x.number, date: x.date,
+      meta: [[rec(x) ? "ລູກຄ້າ" : "ຜູ້ສະໜອງ", partyName], [rec(x) ? "ເຂົ້າບັນຊີ" : "ຈ່າຍຈາກ", (Store.get("bank_accounts", x.bank_account) || {}).name || ""]],
+      cols: ["ລາຍການ", "ຍອດ"], rows: [[(rec(x) ? "ຮັບຊຳລະ " : "ຈ່າຍຕາມ ") + docNo, M(x.amount)]], totals: [["ຍອດ", M(x.amount), true]] })).join('<div style="height:26px"></div>') };
+  }
+
   function viewInvoice(id) {
     const inv = Store.get("invoices", id);
     const cust = Store.get("customers", inv.customer_id) || {};
@@ -507,7 +516,7 @@
     else if (inv.status !== "paid" && inv.status !== "void") actions = `<button class="btn btn-primary" id="receive">💰 ຮັບເງິນ</button>`;
     if (inv.status !== "draft" && inv.status !== "void") actions += ` <button class="btn btn-danger" id="voidinv">ຍົກເລີກໃບ</button>`;
     if (inv.status !== "draft" && inv.status !== "void") actions += ` <button class="btn btn-ghost" id="assignser">ຜູກ Serial</button>`;
-    const invModel = { titles: ["ໃບແຈ້ງໜີ້ / Invoice", "TAX INVOICE"], number: inv.number, date: inv.date, status: { label: (DOC_ST[inv.status] || [inv.status, "draft"])[0], tone: (DOC_ST[inv.status] || [0, "draft"])[1] },
+    const invModel = { tabs: [payTab("INVOICE", id, cust.name, "ໃບຮັບເງິນ", "grn")], titles: ["ໃບແຈ້ງໜີ້ / Invoice", "TAX INVOICE"], number: inv.number, date: inv.date, status: { label: (DOC_ST[inv.status] || [inv.status, "draft"])[0], tone: (DOC_ST[inv.status] || [0, "draft"])[1] },
       stepper: docSteps(inv.status, ["ສ້າງ", "ລົງບັນຊີ", "ຮັບເງິນບາງສ່ວນ", "ຮັບເງິນຄົບ"]), meta: [["ລູກຄ້າ", cust.name], ["ທີ່ຢູ່", cust.address], ["TIN", cust.tin], ["ຄົບກຳນົດ", UI.fmtDate(inv.due_date)]], cols: ["ລາຍການ", "ຈຳນວນ", "ລາຄາ", "ຫຼຸດ", "ລວມ"],
       rows: lines.map(l => { const it = Store.get("items", l.item_id) || {}; return [it.name || "", String(l.qty), M(l.price), M(l.discount || 0), M(l.qty * l.price - (l.discount || 0))]; }),
       totals: [["ຍອດກ່ອນ VAT", M(t.subtotal - t.discount)], ["VAT", M(t.vat)], ["ຍອດລວມ", M(inv.total || t.total), true], ["ຈ່າຍແລ້ວ", M(inv.paid || 0)], ["ຄ້າງຮັບ", M(bal)]], note: inv.note, journal: docJournal(inv.je_id), steps: [], log: [],
@@ -643,7 +652,7 @@
     else if (bill.status === "draft") actions = `<button class="btn btn-primary" id="post">✔ ຢືນຢັນ & ລົງບັນຊີ</button> <button class="btn btn-danger" id="del">ລຶບ</button>`;
     else if (bill.status !== "paid" && bill.status !== "void") actions = `<button class="btn btn-primary" id="pay">💸 ຈ່າຍເງິນ</button>`;
     if (bill.status !== "draft" && bill.status !== "void" && bill.status !== "pending" && bill.status !== "rejected") actions += ` <button class="btn btn-danger" id="voidbill">Void</button>`;
-    const billModel = { titles: ["ໃບບິນຊື້ / Bill", "SUPPLIER BILL"], number: bill.number, date: bill.date, status: { label: (DOC_ST[bill.status] || [bill.status, "draft"])[0], tone: (DOC_ST[bill.status] || [0, "draft"])[1] },
+    const billModel = { tabs: (bill.case_id ? ProcureUI.tabsFor(bill.case_id) : []).concat([payTab("BILL", id, vend.name, "ໃບຈ່າຍເງິນ", "pay")]), tabTone: "bill", titles: ["ໃບບິນຊື້ / Bill", "SUPPLIER BILL"], number: bill.number, date: bill.date, status: { label: (DOC_ST[bill.status] || [bill.status, "draft"])[0], tone: (DOC_ST[bill.status] || [0, "draft"])[1] },
       stepper: docSteps(bill.status, ["ສ້າງ", "ລົງບັນຊີ", "ຈ່າຍບາງສ່ວນ", "ຈ່າຍຄົບ"]), meta: [["ຜູ້ສະໜອງ", vend.name], ["ຄົບກຳນົດ", UI.fmtDate(bill.due_date)]], cols: ["ບັນຊີ / ລາຍລະອຽດ", "ຍອດ"], rows: lines.map(l => [(Acc.accName(l.account_id) || "") + (l.description ? " — " + l.description : ""), M((Number(l.qty) || 1) * (Number(l.price) || 0))]),
       totals: [["ກ່ອນ VAT", M(t.subtotal)], ["VAT", M(t.vat)], ["ຍອດລວມ", M(bill.total || t.total), true], ["ຄ້າງຈ່າຍ", M(bal)]], note: bill.note, journal: docJournal(bill.je_id), steps: [], log: [],
       actions: blockBtns(`<button class="btn btn-ghost" id="battach">📎 ເອກະສານ (${docsFor("bills", id).length})</button><button class="btn btn-ghost" id="bcopy">ສຳເນົາ</button><button class="btn btn-ghost" id="bprint">🖨 ພິມ</button>${actions}`) };
@@ -2805,7 +2814,10 @@
         <button class="btn ${cfg.enabled ? "btn-ghost" : "btn-primary"}" id="ap-toggle">${cfg.enabled ? "ປິດ Auto-Posting" : "ເປີດ Auto-Posting"}</button>
         <button class="btn btn-primary" id="ap-run" ${ready ? "" : "disabled"}>▶ ແລ່ນດຽວນີ້ (${ready})</button>
       </div>` : '<p class="hint mb-3">ສະເພາະ Manager/Admin ປ່ຽນການຕັ້ງຄ່າໄດ້</p>'}
-      ${can ? `<details class="card p-4 mb-4"><summary class="font-semibold cursor-pointer">⚙️ ຕັ້ງຄ່າເພີ່ມ: ຄ້າງຈ່າຍ · ປິດ VAT · ອາກອນກຳໄລ · ລັອກງວດ</summary>
+      ${can ? `<div class="card p-4 mb-4"><div class="font-semibold mb-1">📅 ກຳນົດວັນທີລົງບັນຊີອັດຕະໂນມັດ</div><div class="hint mb-2">ເລືອກວ່າແຕ່ລະລາຍການລົງວັນທີເທົ່າໃດຂອງເດືອນ (ຄ່າເລີ່ມຕົ້ນ = ທ້າຍເດືອນ). ລະບົບລົງໃຫ້ເມື່ອເປີດແອັບຫຼັງຮອດວັນນັ້ນ. Recurring ຕັ້ງວັນໄດ້ຢູ່ໜ້າ Recurring ຂອງມັນເອງ.</div>
+        <div class="grid sm:grid-cols-2 gap-3">${[["DEPR", "ຄ່າເສື່ອມລາຄາ"], ["PREPAID", "ຕັດຄ່າໃຊ້ຈ່າຍຈ່າຍລ່ວງໜ້າ (Prepaid)"], ["DEFERRED", "ຮັບຮອງລາຍຮັບຮັບລ່ວງໜ້າ"], ["ACCRUAL", "ຄ່າໃຊ້ຈ່າຍຄ້າງຈ່າຍ"]].map(([k, l]) => `<div><label class="field">${l}</label><select class="input" data-pd="${k}"><option value="0" ${!(cfg.post_day || {})[k] ? "selected" : ""}>ທ້າຍເດືອນ</option>${Array.from({ length: 28 }, (_, i) => `<option value="${i + 1}" ${Number((cfg.post_day || {})[k]) === i + 1 ? "selected" : ""}>ວັນທີ ${i + 1}</option>`).join("")}</select></div>`).join("")}</div>
+        <div class="flex justify-end mt-3"><button class="btn btn-primary" id="ap-days-save">ບັນທຶກວັນທີ</button></div></div>
+      <details class="card p-4 mb-4"><summary class="font-semibold cursor-pointer">⚙️ ຕັ້ງຄ່າເພີ່ມ: ຄ້າງຈ່າຍ · ປິດ VAT · ອາກອນກຳໄລ · ລັອກງວດ</summary>
         <div class="grid sm:grid-cols-3 gap-3 mt-3">
           <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="ap-vat" ${cfg.vat_close ? "checked" : ""}> ປິດ VAT ທຸກທ້າຍເດືອນ (ໂອນເຂົ້າ VAT ຕ້ອງຍື່ນ)</label>
           <div><label class="field">ສຳຮອງອາກອນກຳໄລ % (0 = ປິດ)</label><input class="input num" type="number" id="ap-ptax" value="${cfg.ptax_rate || 0}"></div>
@@ -2843,6 +2855,7 @@
           if (n > 0) UI.toast("ເປີດແລ້ວ — ມີ " + n + " ລາຍການຄ້າງ ກົດ ▶ ແລ່ນດຽວນີ້ ເມື່ອກວດແລ້ວ", "info");
           again();
         };
+        q("#ap-days-save").onclick = () => { const pd = {}; bd.querySelectorAll("[data-pd]").forEach(s => { pd[s.dataset.pd] = Number(s.value) || 0; }); Autopost.setConfig({ post_day: pd }); UI.toast("ບັນທຶກວັນທີລົງບັນຊີແລ້ວ", "ok"); again(); };
         q("#ap-more-save").onclick = () => { Autopost.setConfig({ vat_close: q("#ap-vat").checked, ptax_rate: Math.max(0, Number(q("#ap-ptax").value) || 0), autolock_days: Math.max(0, Number(q("#ap-lock").value) || 0) }); UI.toast("ບັນທຶກແລ້ວ", "ok"); again(); };
         q("#ac-add").onclick = () => {
           const amt = Number(q("#ac-amt").value) || 0, name = q("#ac-name").value.trim();
@@ -3905,7 +3918,6 @@
   const TOUR_STEPS = [
     { ic: "👋", title: "ຍິນດີຕ້ອນຮັບສູ່ ST ERP", body: "ລະບົບ ERP ບັນຊີ + POS ຂາຍໜ້າຮ້ານ + ຈັດການເອກະສານ (DMS) ຄົບໃນບ່ອນດຽວ. ຂ້ອຍຈະພາເບິ່ງ 6 ຈຸດສຳຄັນ (30 ວິ)." },
     { ic: "✅", title: "ວຽກຂອງຂ້ອຍ", body: "ໜ້າ 'ວຽກຂອງຂ້ອຍ' ລວມທຸກສິ່ງທີ່ທ່ານຕ້ອງເຮັດ — ອະນຸມັດ, ແກ້ໄຂ, ຮັບຊາບແຈ້ງການ, ທວງໜີ້ — ຕາມບົດບາດ. ເປີດເບິ່ງທຸກເຊົ້າ.", nav: "mytasks" },
-    { ic: "🛒", title: "ຂາຍໜ້າຮ້ານ (POS)", body: "ກົດສິນຄ້າ → ເລືອກລູກຄ້າ/ໃສ່ສ່ວນຫຼຸດ → ຮັບເງິນ (ມີປຸ່ມເງິນດ່ວນ) → ຊຳລະ ພິມໃບບິນ. ຕັດສະຕັອກ+ລົງບັນຊີເອງ. ມີຄືນສິນຄ້າ ແລະ ສະຫຼຸບຍอດປະຈຳວັນ.", nav: "pos" },
     { ic: "📁", title: "ຈັດການເອກະສານ", body: "ອັບໂຫລດໄຟລ໌ → ຂໍອະນຸມັດຕາມໂຊ່ (workflow) → ເຜີຍແຜ່. ຈັດໂຟນເດີ, Tags, ແນບໃສ່ Invoice/Bill ໄດ້. ມີແຈ້ງການທີ່ຕ້ອງກົດ 'ຮັບຊາບ'.", nav: "docs" },
     { ic: "🔔", title: "ແຈ້ງເຕືອນ & ຄົ້ນຫາໄວ", body: "ກະດິງ 🔔 ເທິງຂວາ ບອກສິ່ງທີ່ຕ້ອງເຮັດ. ກົດ Ctrl+K ເພື່ອຄົ້ນຫາ/ໄປໜ້າໃດກໍ່ໄດ້ໄວໆ." },
     { ic: "📘", title: "ຕ້ອງການຄວາມຊ່ວຍເຫຼືອ?", body: "ກົດ F1 ຫຼື ປຸ່ມ '📘 ຄູ່ມື' ມຸມຊ້າຍລຸ່ມ ເພື່ອເປີດຄູ່ມື ຫຼື ຊົມທົວຣ໌ນີ້ຄືນ. ເລີ່ມໃຊ້ໄດ້ເລີຍ!" }

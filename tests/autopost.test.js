@@ -220,3 +220,14 @@ test("auto-lock does not lock a month that still has a failing task", async () =
   assert.ok(r.errors.length);
   assert.equal(r.locked, undefined);
 });
+
+test("post day: depreciation posts on the chosen day of the month, not at month-end", async () => {
+  const { Autopost, Store } = await fresh();
+  Autopost.setConfig({ enabled: true, start: "2026-01", post_day: { DEPR: 5 } });
+  asset(Store);
+  assert.equal(Autopost.run("2026-03-04").posted.length, 2, "Jan + Feb; March's day 5 has not come yet");
+  const r = Autopost.run("2026-03-05");
+  assert.equal(r.posted.length, 1);
+  assert.equal(r.posted[0].date, "2026-03-05");
+  assert.equal(Autopost.run("2026-03-31").posted.length, 0, "March is already done");
+});

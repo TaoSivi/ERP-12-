@@ -38,22 +38,33 @@
       create: () => FlowsUI.newRequest("EXP"), count: () => Store.all("requests").length, wait: () => Store.where("requests", r => r.stage === "approval").length }
   ];
 
+  // lanes = the order documents follow; "flow" lanes number the steps and draw arrows between them
+  const LANES = [
+    { t: "ຂະບວນຊື້", s: "ໃບສັ່ງຊື້ → ຮັບສິນຄ້າ → ບິນຊື້ → ຈ່າຍເງິນ", flow: true, docs: [0, 1, 2, 5] },
+    { t: "ຂະບວນຂາຍ", s: "ອອກບິນຂາຍ → ຮັບເງິນ", flow: true, docs: [3, 4] },
+    { t: "ສາງ", s: "ເບີກ ແລະ ແກ້ຈຳນວນສິນຄ້າ", docs: [6, 7] },
+    { t: "ຄົນ & ຊັບສິນ", s: "ປະຈຳເດືອນ", docs: [8, 9] },
+    { t: "ລາຍຈ່າຍ", s: "ຂໍເບີກ / ຂໍຈ່າຍ", docs: [10] }
+  ];
+
   function page() {
     const allowed = ctx().allowed || (() => true), canDo = ctx().canDo || (() => true);
     const q = (view().querySelector("#dh-q") || {}).value || "";
-    const shown = DOCS.filter(d => allowed(d.route));
-    const card = d => { const w = d.wait(), n = d.count(), mk = canDo("create", d.route);
-      return `<div class="dh-card" data-name="${E((d.name + " " + d.key + " " + d.hint).toLowerCase())}">
-        <div class="dh-top"><span class="dh-ic">${d.ic}</span><div><div class="dh-name">${E(d.name)}</div><div class="dh-hint">${E(d.hint)}</div></div></div>
-        <div class="dh-stats"><span class="chip ${w ? "s-wait" : "s-draft"}">ລໍອະນຸມັດ ${w}</span><span class="chip s-draft">ທັງໝົດ ${n}</span></div>
-        <div class="dh-btns">${mk ? `<button class="btn btn-primary" data-new="${DOCS.indexOf(d)}">+ ສ້າງ</button>` : ""}<a class="btn btn-ghost" href="${d.list}">ເບິ່ງລາຍການ →</a></div></div>`; };
-    view().innerHTML = UI.pageHead("ເອກະສານທັງໝົດ", "ເລືອກປະເພດເອກະສານ — ກົດ + ສ້າງ ເພື່ອເລີ່ມ, ເບິ່ງລາຍການ ເພື່ອຕິດຕາມ") +
-      `<input class="input mb-4" id="dh-q" type="search" placeholder="🔍 ຄົ້ນຫາເອກະສານ ເຊັ່ນ: ບິນ, ເງິນເດືອນ, ຮັບເຄື່ອງ..." value="${E(q)}" style="max-width:520px">` +
-      GROUPS.map(g => { const ds = shown.filter(d => d.g === g); return ds.length ? `<section class="dh-grp" data-grp><h2 class="dh-gh">${E(g)}</h2><div class="dh-grid">${ds.map(card).join("")}</div></section>` : ""; }).join("") +
+    const ok = d => allowed(d.route), pend = DOCS.filter(ok).reduce((s, d) => s + d.wait(), 0), total = DOCS.filter(ok).reduce((s, d) => s + d.count(), 0);
+    const tile = (d, step, flow) => { const w = d.wait(), n = d.count(), i = DOCS.indexOf(d);
+      return `<article class="dh-tile${flow ? " flow" : ""}" data-name="${E((d.name + " " + d.key + " " + d.hint).toLowerCase())}">
+        <div class="dh-head">${flow ? `<span class="dh-step">${step}</span>` : ""}<span class="dh-ic">${d.ic}</span><h3 class="dh-name">${E(d.name)}</h3></div>
+        <p class="dh-hint">${E(d.hint)}</p>
+        <div class="dh-foot"><span class="dh-count${w ? " warn" : ""}">${w ? "⏳ ລໍອະນຸມັດ " + w : "ທັງໝົດ " + n}</span>
+          <span class="dh-act">${canDo("create", d.route) ? `<button class="btn btn-primary btn-sm" data-new="${i}">+ ສ້າງ</button>` : ""}<a class="btn btn-ghost btn-sm" href="${d.list}">ເບິ່ງ</a></span></div></article>`; };
+    view().innerHTML = `<div class="dh-top"><div><h1 class="page-title">ເອກະສານທັງໝົດ</h1><p class="page-sub">ເລືອກປະເພດ → ກົດ + ສ້າງ ເພື່ອເລີ່ມ. ລູກສອນ → ຄືລຳດັບເອກະສານທີ່ຕໍ່ກັນ.</p></div>
+        <a class="dh-wait${pend ? " on" : ""}" href="#/gate"><b>${pend}</b><span>ລໍອະນຸມັດ<br><small>ເອກະສານທັງໝົດ ${total}</small></span></a></div>
+      <input class="input dh-q" id="dh-q" type="search" placeholder="🔍 ຄົ້ນຫາ: ບິນ, ເງິນເດືອນ, ຮັບເຄື່ອງ, ຈ່າຍ..." value="${E(q)}">` +
+      LANES.map(l => { const ds = l.docs.map(i => DOCS[i]).filter(ok); return ds.length ? `<section class="dh-lane" data-lane><header><h2>${E(l.t)}</h2><span>${E(l.s)}</span></header><div class="dh-row">${ds.map((d, k) => tile(d, k + 1, l.flow && ds.length > 1)).join("")}</div></section>` : ""; }).join("") +
       '<p class="hint mt-4" id="dh-none" style="display:none">ບໍ່ພົບເອກະສານທີ່ຄົ້ນຫາ</p>';
     const apply = () => { const t = view().querySelector("#dh-q").value.trim().toLowerCase(); let any = 0;
-      view().querySelectorAll(".dh-card").forEach(c => { const on = !t || c.dataset.name.indexOf(t) >= 0; c.style.display = on ? "" : "none"; if (on) any++; });
-      view().querySelectorAll("[data-grp]").forEach(s => { s.style.display = Array.from(s.querySelectorAll(".dh-card")).some(c => c.style.display !== "none") ? "" : "none"; });
+      view().querySelectorAll(".dh-tile").forEach(c => { const on = !t || c.dataset.name.indexOf(t) >= 0; c.style.display = on ? "" : "none"; if (on) any++; });
+      view().querySelectorAll("[data-lane]").forEach(s => { s.style.display = Array.from(s.querySelectorAll(".dh-tile")).some(c => c.style.display !== "none") ? "" : "none"; });
       view().querySelector("#dh-none").style.display = any ? "none" : ""; };
     view().querySelector("#dh-q").oninput = apply; apply();
     view().querySelectorAll("[data-new]").forEach(b => b.onclick = () => { try { DOCS[Number(b.dataset.new)].create(); } catch (e) { UI.toast(e.message, "err"); } });

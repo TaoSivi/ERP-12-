@@ -157,11 +157,11 @@
           <p class="page-sub">${E(c.requester)} · ${E(UI.fmtDate(c.date))}${c.need_by ? " · ຕ້ອງການ " + E(UI.fmtDate(c.need_by)) : ""} · <b>${M(amount)}</b>${s.po ? " · " + E(vendorName(s.po.vendor_id)) : ""}</p></div>
         <div class="flex gap-2 items-center">${roleBar()}${chip(s.stage)}</div>
       </div>
-      <div class="card p-4 mb-4">${stepper(s.stage)}</div>
+      <div class="card p-4 mb-4">${chainTabs(c, s)}${stepper(s.stage)}</div>
       <div class="grid lg:grid-cols-3 gap-4">
         <div class="lg:col-span-2 space-y-4 min-w-0">
           <div id="next">${nextBox(c, s, n)}</div>
-          ${itemsCard(s)}
+          ${paperCard(c, s)}
         </div>
         <div class="space-y-4 min-w-0">${filesCard(c, s)}${trailCard(s)}${bookingCard(s)}</div>
       </div>`;
@@ -329,6 +329,41 @@
     }
   }
 
+  /* ---- one paper per document of the case: PR · PO · GRN · Bill · Payment ---- */
+  const logOf = s => s.history.map(h => ({ at: h.ts, by: h.role, role: "", action: DID[h.action] || h.action, note: h.note || "" }));
+  const stepsFrom = cs => cs.steps.map((st, i) => ({ label: Approval.stepLabel(cs.chain[i]), need: st.need, signed: cs.done.filter(x => x.step === i), state: cs.complete || i < cs.step ? "done" : i === cs.step ? "cur" : "wait" }));
+  const GAP = '<div style="height:26px"></div>';
+  function chainPapers(c, s) {
+    const out = {}, cs = Approval.chainState(c, "PURCHASE", s.est), po = s.po;
+    out.pr = DocView.paper({ titles: ["ໃບຂໍຊື້", "PURCHASE REQUEST"], number: c.number, date: c.date, meta: [["ຜູ້ຂໍ", c.requester], ["ຕ້ອງການພາຍໃນ", c.need_by ? UI.fmtDate(c.need_by) : ""], ["ເຫດຜົນ", c.purpose]], cols: ["ລາຍການ", "ປະເພດ", "ຈຳນວນ", "ລາຄາ", "ລວມ"],
+      rows: s.lines.map(l => [l.description, KIND[l.kind] || "", String(l.qty), M(l.price), M(l.line_total != null ? l.line_total : l.qty * l.price)]), totals: [["ຍອດປະມານ", M(s.est), true]], note: c.justification || "", steps: stepsFrom(cs), requester: { name: c.requester, role: "", at: c.created_at || c.date }, log: logOf(s) });
+    if (po) out.po = DocView.paper({ titles: ["ໃບສັ່ງຊື້", "PURCHASE ORDER"], number: po.number, date: po.date, meta: [["ຜູ້ສະໜອງ", vendorName(po.vendor_id)], ["ອ້າງອີງ", c.number]], cols: ["ລາຍການ", "ຈຳນວນ", "ລາຄາ", "ລວມ", "ຮັບແລ້ວ", "ບິນແລ້ວ"],
+      rows: s.poLines.map(l => [l.description, String(l.qty), M(l.price), M(l.qty * l.price), String(l.received_qty || 0), String(l.billed_qty || 0)]), totals: [["ຍອດ PO", M(po.total), true]], note: po.note || "" });
+    if (s.grns.length) out.grn = s.grns.map(g => DocView.paper({ titles: ["ໃບຮັບສິນຄ້າ", "GOODS RECEIPT NOTE"], number: g.number, date: g.date, meta: [["ອ້າງອີງ PO", po ? po.number : "-"], ["ຜູ້ສະໜອງ", po ? vendorName(po.vendor_id) : ""]], cols: ["ລາຍການ", "ຈຳນວນຮັບ", "ຕົ້ນທຶນ", "ລວມ"],
+      rows: Store.where("grn_lines", l => l.grn_id === g.id).map(l => { const pl = Store.get("po_lines", l.po_line_id) || {}; return [pl.description || "", String(l.qty), M(l.unit_cost), M(l.qty * l.unit_cost)]; }), totals: [["ມູນຄ່າ", M(g.total), true]], note: g.note || "" })).join(GAP);
+    if (s.bills.length) out.bill = s.bills.map(b => DocView.paper({ titles: ["ໃບບິນຊື້", "VENDOR BILL"], number: b.number, date: b.date, meta: [["ເລກບິນຜູ້ສະໜອງ", b.vendor_ref || "-"], ["ຜູ້ສະໜອງ", vendorName(b.vendor_id)]], cols: ["ລາຍການ", "ຈຳນວນ", "ລາຄາ", "ລວມ"],
+      rows: Store.where("bill_lines", l => l.bill_id === b.id).map(l => [l.description || "", String(l.qty), M(l.price), M(l.qty * l.price)]), totals: [["ລວມ (ລວມ VAT)", M(b.total), true], ["ຈ່າຍແລ້ວ", M(b.paid || 0)]] })).join(GAP);
+    const ids = s.bills.map(b => b.id), pays = Store.where("payments", p => p.ref_type === "BILL" && ids.indexOf(p.ref_id) >= 0);
+    if (pays.length) out.pay = pays.map(p => DocView.paper({ titles: ["ໃບຈ່າຍເງິນ", "PAYMENT VOUCHER"], number: p.number, date: p.date, meta: [["ຜູ້ສະໜອງ", po ? vendorName(po.vendor_id) : ""], ["ຈ່າຍຈາກ", (Store.get("bank_accounts", p.bank_account) || {}).name || ""]], cols: ["ລາຍການ", "ຍອດ"],
+      rows: [["ຈ່າຍຕາມບິນ " + (Store.get("bills", p.ref_id) || {}).number, M(p.amount)]], totals: [["ຍອດຈ່າຍ", M(p.amount), true]] })).join(GAP);
+    return out;
+  }
+  const TABS = [["pr", "ໃບຂໍຊື້", "pr"], ["po", "ໃບສັ່ງຊື້", "po"], ["grn", "ໃບຮັບເຄື່ອງ", "grn"], ["bill", "ໃບບິນຊື້", "bill"], ["pay", "ໃບຈ່າຍເງິນ", "pay"]];
+  const STAGE_TAB = { draft: "pr", pr_approval: "pr", sourcing: "pr", po_approval: "po", receiving: "po", invoicing: "grn", paying: "bill", closed: "pay" };
+  const tabOf = {};
+  const activeTab = (c, s, papers) => { const k = tabOf[c.id] || STAGE_TAB[s.stage] || "pr"; return papers[k] ? k : "pr"; };
+  function chainTabs(c, s) {
+    const papers = chainPapers(c, s), act = activeTab(c, s, papers);
+    return `<div class="mb-3">${DocView.tabsHtml(TABS.map(([k, l, tone]) => ({ key: k, label: l, tone, html: papers[k], ready: !!papers[k] })), act, key => { tabOf[c.id] = key; detail(c.id); })}</div>`;
+  }
+  function paperCard(c, s) { const p = chainPapers(c, s); return `<div class="dv-paper" id="dv-paper">${p[activeTab(c, s, p)]}</div>`; }
+  // the same papers for another screen that knows the case id (the Bill page)
+  function tabsFor(caseId) {
+    const c = Store.get("purchase_requisitions", caseId); if (!c) return [];
+    const p = chainPapers(c, Procure.summary(c));
+    return TABS.filter(t => t[0] !== "pay" && p[t[0]]).map(([k, l, tone]) => ({ key: "c" + k, label: l, tone, html: p[k] }));
+  }
+
   function itemsCard(s) {
     const lines = s.poLines.length ? s.poLines : s.lines;
     return `<div class="card p-5"><div class="section-title">ລາຍການ</div><div class="overflow-x-auto"><table class="data"><thead><tr><th>ລາຍການ</th><th>ປະເພດ</th><th class="num">ຈຳນວນ</th><th class="num">ຍອດ</th>${s.poLines.length ? '<th class="num">ຮັບ</th><th class="num">ບິນ</th>' : ""}</tr></thead><tbody>
@@ -353,5 +388,5 @@
     </div>`;
   }
 
-  window.ProcureUI = { page: render, newCase };
+  window.ProcureUI = { page: render, newCase, tabsFor };
 })();

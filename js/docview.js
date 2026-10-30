@@ -70,13 +70,38 @@
     ${(m.steps || []).length ? `<div class="dv-card"><div class="dv-h">ຜູ້ອະນຸມັດແຕ່ລະຂັ້ນ</div>${m.steps.map((s, i) => `<div class="dv-step ${s.state}"><span class="dv-n">${i + 1}</span><div><b>${E(s.label)}${s.need > 1 ? " ×" + s.need : ""}</b>
       <div class="hint">${s.signed.length ? s.signed.map(d => "✓ " + E(d.name || d.role) + " " + day(d.at)).join("<br>") : s.state === "cur" ? "⏳ ກຳລັງລໍ" : "ລໍຄິວ"}</div></div></div>`).join("")}<div class="hint mt-2">ຕັ້ງຄົນອະນຸມັດ: ຕັ້ງຄ່າ › ຂັ້ນອະນຸມັດ</div></div>` : ""}</div>`;
 
-  function page(m) { return `<div class="dv-top">${m.back ? `<button class="btn btn-ghost" id="dv-back">← ${E(m.back)}</button>` : ""}${stepper(m)}</div>
-    <div class="dv-grid"><div class="dv-paper" id="dv-paper">${paper(m)}</div>${side(m)}</div>`; }
+  /* tabs = the papers of one chain; each {key,label,tone,html|model,ready}. A tab whose paper does not exist yet is shown faded.
+     show(key) is called on a click; the active tab carries a print icon. */
+  const REG = {}; let regN = 0;
+  const tabHtml = t => t.html != null ? t.html : (t.model ? paper(t.model) : "");
+  function tabsHtml(tabs, active, show) {
+    const id = ++regN; REG[id] = { tabs, show };
+    return `<div class="dv-tabs" data-reg="${id}" role="tablist">${tabs.map(t => { const on = t.key === active, off = t.ready === false;
+      return `<button type="button" role="tab" class="dv-tab t-${t.tone || "pr"}${on ? " on" : ""}${off ? " off" : ""}" data-tab="${E(t.key)}" aria-selected="${on}" ${off ? 'disabled title="ຍັງບໍ່ມີເອກະສານນີ້"' : ""}>${E(t.label)}${on ? '<span class="dv-tprint" data-tprint title="ພິມ" role="button" aria-label="ພິມ">🖨</span>' : ""}</button>`; }).join("")}</div>`;
+  }
+  document.addEventListener("click", e => {
+    const b = e.target.closest && e.target.closest(".dv-tab"); if (!b || b.disabled) return;
+    const box = b.closest(".dv-tabs"), r = box && REG[box.dataset.reg]; if (!r) return;
+    const t = r.tabs.find(x => x.key === b.dataset.tab); if (!t) return;
+    if (e.target.closest("[data-tprint]")) { if (window.AppCtx && AppCtx.printHTML) AppCtx.printHTML(t.label, tabHtml(t)); return; }
+    r.show(t.key);
+  });
+  function page(m) {
+    let tabs = "";
+    if (m.tabs && m.tabs.length) {
+      const all = [{ key: "main", label: m.titles[0], tone: m.tabTone || "pr", model: m }].concat(m.tabs);
+      const show = key => { const t = all.find(x => x.key === key), p = document.getElementById("dv-paper"), box = document.querySelector(".dv-tabs[data-reg]"); if (!p || !t) return; p.innerHTML = tabHtml(t); if (box) box.outerHTML = tabsHtml(all, key, show); };
+      tabs = tabsHtml(all, "main", show);
+    }
+    const back = m.back ? `<button class="btn btn-ghost" id="dv-back">← ${E(m.back)}</button>` : "";
+    return `<div class="dv-top">${tabs ? `<div class="dv-row1">${back}${tabs}</div>` : back}${stepper(m)}</div>
+    <div class="dv-grid"><div class="dv-paper" id="dv-paper">${paper(m)}</div>${side(m)}</div>`;
+  }
   function open(m, onMount) {
     UI.modal(m.titles[0] + " · " + m.number, page(m), { wide: true, onMount: (bd, close) => { const b = bd.querySelector("#dv-back"); if (b && m.onBack) b.onclick = () => { close(); m.onBack(); }; const at = bd.querySelector("#dv-attach"); if (at && m.attach) at.onclick = () => AppCtx.attachDocs(m.attach.ref[0], m.attach.ref[1], m.attach.label || m.number);
       if (onMount) onMount(bd, close); } });
   }
   function print(m) { if (window.AppCtx && AppCtx.printHTML) AppCtx.printHTML(m.number + " " + m.titles[0], paper(m)); }
 
-  window.DocView = { paper, page, open, print };
+  window.DocView = { paper, page, open, print, tabsHtml };
 })();

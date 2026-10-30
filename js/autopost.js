@@ -40,11 +40,16 @@
   // last month that has fully ended as of `today`
   function lastCompleted(today) { const p = periodOf(today); return monthEnd(p) <= today ? p : prevPeriod(p); }
 
+  /* ---------- the day each routine posts: 0 = month-end (default), 1..28 = that day of the month ---------- */
+  const postDay = (cfg, type) => Math.min(28, Math.max(0, Number((cfg.post_day || {})[type]) || 0));
+  const dateFor = (cfg, type, p) => { const d = postDay(cfg, type); return d ? p + "-" + pad(d) : monthEnd(p); };
+  const lastFor = (cfg, type, today) => { const d = postDay(cfg, type); if (!d) return lastCompleted(today); const p = periodOf(today); return dateFor(cfg, type, p) <= today ? p : prevPeriod(p); };
+
   /* ---------- config ---------- */
   function getConfig() {
     const c = Store.get("settings", "autopost");
     return { enabled: !!(c && c.enabled), start: (c && c.start) || periodOf(todayStr()),
-      vat_close: !!(c && c.vat_close), ptax_rate: Number(c && c.ptax_rate) || 0, autolock_days: Number(c && c.autolock_days) || 0 };
+      vat_close: !!(c && c.vat_close), post_day: Object.assign({}, c && c.post_day), ptax_rate: Number(c && c.ptax_rate) || 0, autolock_days: Number(c && c.autolock_days) || 0 };
   }
   function setConfig(patch) {
     const cur = Store.get("settings", "autopost");
@@ -213,18 +218,18 @@
     // depreciation – simulate per asset so the plan never shows more than the remaining cost
     const sim = {};
     Store.where("assets", a => a.status === "active" && Number(a.acc_dep) < Number(a.cost)).forEach(a => { sim[a.id] = Number(a.acc_dep); });
-    periodsBetween(cfg.start, last).forEach(p => {
+    periodsBetween(cfg.start, lastFor(cfg, "DEPR", today)).forEach(p => {
       let amt = 0;
       Store.where("assets", a => sim[a.id] !== undefined && (!a.date || periodOf(a.date) <= p) && !hasRun("DEPR:" + a.id + ":" + p)).forEach(a => {
         const m = Math.min(Number(a.cost) / Number(a.life_months || 1), Number(a.cost) - sim[a.id]);
-        if (m > 0) { amt += m; if (!isLocked(monthEnd(p))) sim[a.id] += m; }
+        if (m > 0) { amt += m; if (!isLocked(dateFor(cfg, "DEPR", p))) sim[a.id] += m; }
       });
-      if (amt > 0) push("DEPR", "", "ຄ່າເສື່ອມລາຄາ " + p, p, monthEnd(p), amt, () => {
+      if (amt > 0) push("DEPR", "", "ຄ່າເສື່ອມລາຄາ " + p, p, dateFor(cfg, "DEPR", p), amt, () => {
         if (window.Gate && Gate.isOn("DEPR")) { // wait for the approver; the period cannot auto-lock until it is posted
-          try { Gate.submit("DEPR", { period: p, date: monthEnd(p), amount: round(amt) }, "system", { key: "DEPR:" + p }); } catch (e) { /* already waiting */ }
+          try { Gate.submit("DEPR", { period: p, date: dateFor(cfg, "DEPR", p), amount: round(amt) }, "system", { key: "DEPR:" + p }); } catch (e) { /* already waiting */ }
           return null;
         }
-        return doDepr(p, monthEnd(p));
+        return doDepr(p, dateFor(cfg, "DEPR", p));
       });
     });
 
@@ -233,11 +238,11 @@
       Store.where(coll, x => x.status === "active").forEach(x => {
         let remain = Number(x.total) - Number(x[field] || 0);
         const per = round(Number(x.total) / Number(x.periods || 1));
-        periodsBetween(startFor(x.start), last).forEach(p => {
+        periodsBetween(startFor(x.start), lastFor(cfg, kind, today)).forEach(p => {
           if (remain <= 0.005 || hasRun(kind + ":" + x.id + ":" + p)) return;
           const amt = Math.min(per, remain);
-          if (!isLocked(monthEnd(p))) remain -= amt;
-          push(kind, x.id, lbl + x.name + " " + p, p, monthEnd(p), amt, () => doSchedule(kind, x, p, monthEnd(p)));
+          if (!isLocked(dateFor(cfg, kind, p))) remain -= amt;
+          push(kind, x.id, lbl + x.name + " " + p, p, dateFor(cfg, kind, p), amt, () => doSchedule(kind, x, p, dateFor(cfg, kind, p)));
         });
       });
     });
@@ -256,8 +261,8 @@
 
     // accruals (month-end) and their reversal on the 1st of the next month
     Store.where("accruals", a => a.active !== false).forEach(a => {
-      periodsBetween(startFor(a.start), last).forEach(p => {
-        if (!hasRun("ACCRUAL:" + a.id + ":" + p)) push("ACCRUAL", a.id, "ຄ້າງຈ່າຍ " + a.name + " " + p, p, monthEnd(p), a.amount, () => doAccrual(a, p, monthEnd(p)));
+      periodsBetween(startFor(a.start), lastFor(cfg, "ACCRUAL", today)).forEach(p => {
+        if (!hasRun("ACCRUAL:" + a.id + ":" + p)) push("ACCRUAL", a.id, "ຄ້າງຈ່າຍ " + a.name + " " + p, p, dateFor(cfg, "ACCRUAL", p), a.amount, () => doAccrual(a, p, dateFor(cfg, "ACCRUAL", p)));
       });
     });
     Store.where("auto_runs", r => r.type === "ACCRUAL").forEach(run => {
