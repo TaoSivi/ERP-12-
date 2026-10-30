@@ -240,3 +240,22 @@ body.no-acct .acct-only { display: none !important; }
 .dv-tprint { background: rgba(255,255,255,.75); border-radius: 8px; padding: 2px 8px; font-size: 14px; }
 .dv-tprint:hover { background: #fff; }
 @media (max-width: 640px) { .dv-tab { min-width: 104px; font-size: 13.5px; } }
+
+/* Settings: section tabs + tiles */
+.st-wrap { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 16px; align-items: start; }
+.st-nav { display: flex; flex-direction: column; gap: 4px; position: sticky; top: 12px; background: #fff; border-radius: var(--r-lg); box-shadow: var(--sh-1); padding: 8px; }
+.st-tab { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--r-sm); font-weight: 700; font-size: 14px; color: var(--muted); text-align: left; cursor: pointer; min-height: 44px; }
+.st-tab:hover { background: var(--soft2); } .st-tab.on { background: var(--tiff); color: #fff; }
+.st-tab:focus-visible, .st-tile:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
+.st-h { font-weight: 800; font-size: 16px; margin-bottom: 12px; }
+.st-sec[hidden], .st-save[hidden] { display: none; }
+.st-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; }
+.st-tile { display: flex; gap: 10px; align-items: center; text-align: left; background: var(--soft2); border: 1.5px solid var(--line); border-radius: var(--r-md); padding: 12px; cursor: pointer; min-height: 56px; transition: border-color .12s, background .12s; }
+.st-tile:hover { border-color: var(--tiff); background: #fff; }
+.st-tile b { display: block; font-size: 14px; } .st-tile small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+.st-ic { font-size: 22px; }
+.st-check { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; } .st-check input { width: 18px; height: 18px; margin-top: 3px; }
+.st-check small { display: block; color: var(--muted); font-size: 12.5px; }
+.st-danger { border: 1.5px dashed #e9a5a5; background: #fff6f6; border-radius: var(--r-md); padding: 12px; }
+.st-save { display: flex; justify-content: space-between; align-items: center; gap: 12px; position: sticky; bottom: 8px; margin-top: 12px; background: #fff; border-radius: var(--r-md); box-shadow: var(--sh-2); padding: 10px 14px; }
+@media (max-width: 760px) { .st-wrap { grid-template-columns: 1fr; } .st-nav { flex-direction: row; overflow-x: auto; position: static; } .st-tab { white-space: nowrap; } }

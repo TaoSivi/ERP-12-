@@ -999,33 +999,58 @@
   function settings() {
     const c = Store.get("settings", "company") || {};
     const taxes = Store.all("taxcodes");
-    view().innerHTML = UI.pageHead("ຕັ້ງຄ່າ & Governance", "ໂປຣໄຟລ໌ບໍລິສັດ · ພາສີ · ຄວາມປອດໄພ", '<button class="btn btn-ghost" data-tool="matrix">✍️ ຂັ້ນອະນຸມັດ</button><button class="btn btn-ghost" id="autopost">⏱ Auto-Posting</button><button class="btn btn-ghost" id="guardlog">🛡 Guard Log</button>') +
-      `<div class="grid lg:grid-cols-2 gap-4">
-        <div class="card p-5"><h3 class="font-semibold mb-3">ໂປຣໄຟລ໌ບໍລິສັດ</h3>
-          <div class="space-y-3">
-            <div><label class="field">ຊື່ບໍລິສັດ</label><input class="input" id="s-name" value="${E(c.name || "")}"></div>
-            <div class="grid grid-cols-2 gap-3"><div><label class="field">TIN</label><input class="input" id="s-tin" value="${E(c.tin || "")}"></div>
-              <div><label class="field">ລະຫັດນິຕິບຸກຄົນ (ໃນເລກ Voucher)</label><input class="input" id="s-ent" maxlength="8" placeholder="ເຊັ່ນ LT" value="${E(c.entity_code || "")}"></div></div>
-            <div><label class="field">ທີ່ຢູ່ (ຂຶ້ນໃນໃບ Invoice)</label><input class="input" id="s-addr" value="${E(c.address || "")}"></div>
-            <div class="grid grid-cols-2 gap-3"><div><label class="field">ເບີໂທ</label><input class="input" id="s-phone" value="${E(c.phone || "")}"></div><div><label class="field">ວົງເງິນຕ້ອງອະນຸມັດ (0 = ປິດ)</label><input class="input" id="s-aplimit" type="text" inputmode="numeric" data-num value="${E((c.approval_limit || 0).toLocaleString("en-US"))}"></div></div>
-            <div><label class="field">ຂໍ້ມູນ QR ຮັບເງິນ (ເລກບັນຊີ/LaoQR string — ຂຶ້ນເປັນ QR ໃນໃບ Invoice)</label><input class="input" id="s-qr" value="${E(c.qr_payload || "")}" placeholder="ເຊັ່ນ: BCEL 010-12-00-xxxxxxx-001 ${E(c.name || "")}"></div>
-            <div><label class="field">ໂລໂກ້ບໍລິສັດ (ຮູບນ້ອຍ < 200KB)</label><div class="flex items-center gap-3">${c.logo ? `<img src="${c.logo}" style="height:40px;border-radius:6px">` : ""}<input type="file" id="s-logo" accept="image/*" class="text-sm"></div></div>
-            <div><label class="field">ວັນລັອກບັນຊີ (ຫ້າມ Post ກ່ອນວັນນີ້)</label><input class="input" id="s-lock" type="date" value="${E(c.lock_date || "")}"></div>
-            <div><label class="field">ໂໝດຂັ້ນສູງ</label><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="s-adv" ${c.show_advanced ? "checked" : ""}> ສະແດງ ເອກະສານ (DMS) + ບັນຊີຂັ້ນສູງ (ECL, NRV, Impairment, Landed Cost, FX Adjust, Job Costing, Retention, BOM)</label></div>
-            <button class="btn btn-primary" id="s-save">ບັນທຶກ</button>
-            <div class="mt-3"><button class="btn btn-ghost btn-sm" id="s-company">ຈັດການບໍລິສັດ (Multi-company)</button> <button class="btn btn-ghost btn-sm" id="s-users">ຜູ້ໃຊ້</button> <button class="btn btn-ghost btn-sm" id="s-api">API ເຊື່ອມແອັບອື່ນ</button> <button class="btn btn-ghost btn-sm" id="s-perms">Permissions Matrix</button></div>
+    const tile = (id, ic, t, d, extra) => `<button class="st-tile" ${id ? `id="${id}"` : ""} ${extra || ""}><span class="st-ic">${ic}</span><span><b>${t}</b><small>${d}</small></span></button>`;
+    const secs = [["co", "🏢", "ບໍລິສັດ"], ["tax", "🧾", "ພາສີ & ອັດຕາ"], ["post", "📒", "ການລົງບັນຊີ"], ["sec", "🛡", "ສິດ & ຄວາມປອດໄພ"], ["data", "💾", "ຂໍ້ມູນ & ສຳຮອງ"]];
+    view().innerHTML = UI.pageHead("ຕັ້ງຄ່າ", "ບໍລິສັດ · ພາສີ · ການລົງບັນຊີ · ຄວາມປອດໄພ") +
+      `<div class="st-wrap"><nav class="st-nav" role="tablist">${secs.map(([k, ic, t], i) => `<button role="tab" class="st-tab${i ? "" : " on"}" data-sec="${k}"><span>${ic}</span>${t}</button>`).join("")}</nav>
+      <div class="st-body">
+        <section class="st-sec" data-s="co"><div class="card p-5">
+          <h3 class="st-h">ຂໍ້ມູນບໍລິສັດ</h3>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div class="sm:col-span-2"><label class="field">ຊື່ບໍລິສັດ</label><input class="input" id="s-name" value="${E(c.name || "")}"></div>
+            <div><label class="field">TIN</label><input class="input" id="s-tin" value="${E(c.tin || "")}"></div>
+            <div><label class="field">ລະຫັດນິຕິບຸກຄົນ (ໃນເລກ Voucher)</label><input class="input" id="s-ent" maxlength="8" placeholder="ເຊັ່ນ LT" value="${E(c.entity_code || "")}"></div>
+            <div class="sm:col-span-2"><label class="field">ທີ່ຢູ່ (ຂຶ້ນໃນໃບ Invoice)</label><input class="input" id="s-addr" value="${E(c.address || "")}"></div>
+            <div><label class="field">ເບີໂທ</label><input class="input" id="s-phone" value="${E(c.phone || "")}"></div>
+            <div><label class="field">ໂລໂກ້ (ຮູບນ້ອຍ &lt; 200KB)</label><div class="flex items-center gap-3">${c.logo ? `<img src="${c.logo}" style="height:36px;border-radius:6px">` : ""}<input type="file" id="s-logo" accept="image/*" class="text-sm"></div></div>
+            <div class="sm:col-span-2"><label class="field">ຂໍ້ມູນ QR ຮັບເງິນ <span class="hint">(ເລກບັນຊີ/LaoQR — ຂຶ້ນເປັນ QR ໃນໃບ Invoice)</span></label><input class="input" id="s-qr" value="${E(c.qr_payload || "")}" placeholder="ເຊັ່ນ: BCEL 010-12-00-xxxxxxx-001 ${E(c.name || "")}"></div>
           </div>
-        </div>
-        <div class="card p-5"><h3 class="font-semibold mb-3">ລະຫັດ VAT <button class="btn btn-ghost btn-sm" id="s-tax">+ ເພີ່ມ</button> <button class="btn btn-ghost btn-sm" id="s-fx">ອັດຕາແລກປ່ຽນ</button> <button class="btn btn-ghost btn-sm" id="s-mon">ຕິດຕາມການລົງບັນຊີ</button> <button class="btn btn-ghost btn-sm" id="s-map">ຕາຕະລາງແມບປິ້ງ</button> <button class="btn btn-ghost btn-sm" id="s-posting">ກົດການລົງບັນຊີ</button></h3>
+          <div class="mt-4"><button class="btn btn-ghost btn-sm" id="s-company">🏢 ຈັດການບໍລິສັດ (Multi-company)</button></div>
+        </div></section>
+        <section class="st-sec" data-s="tax" hidden><div class="card p-5">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-3"><h3 class="st-h" style="margin:0">ລະຫັດ VAT</h3><div class="flex gap-2"><button class="btn btn-primary btn-sm" id="s-tax">+ ເພີ່ມລະຫັດ</button><button class="btn btn-ghost btn-sm" id="s-fx">💱 ອັດຕາແລກປ່ຽນ</button></div></div>
           <table class="data"><thead><tr><th>ຊື່</th><th class="num">ອັດຕາ%</th><th>ປະເພດ</th></tr></thead><tbody>
           ${taxes.map(t => `<tr><td>${E(t.name)}</td><td class="num">${t.rate}</td><td>${E(t.type)}</td></tr>`).join("")}</tbody></table>
-          <h3 class="font-semibold mt-5 mb-2">ການເຊື່ອມຕໍ່ຂໍ້ມູນ</h3>
+        </div></section>
+        <section class="st-sec" data-s="post" hidden><div class="card p-5">
+          <h3 class="st-h">ກົດ ແລະ ເຄື່ອງມືລົງບັນຊີ</h3>
+          <div class="st-tiles">
+            ${tile("s-posting", "📐", "ກົດການລົງບັນຊີ", "ປະເພດເອກະສານ → ບັນຊີ Dr/Cr")}${tile("s-map", "🗺", "ຕາຕະລາງແມບປິ້ງ", "ຜັງບັນຊີທີ່ລະບົບໃຊ້")}${tile("s-mon", "📡", "ຕິດຕາມການລົງບັນຊີ", "ເບິ່ງສິ່ງທີ່ລົງແລ້ວ/ຕົກຄ້າງ")}
+            ${tile("autopost", "⏱", "Auto-Posting", "ຄ່າເສື່ອມ, ລ່ວງໜ້າ, ຄ້າງຈ່າຍ + ກຳນົດວັນທີ")}${tile("", "✍️", "ຂັ້ນອະນຸມັດ", "ໂຊ່ຜູ້ອະນຸມັດຕາມປະເພດ", 'data-tool="matrix"')}
+          </div>
+          <div class="grid sm:grid-cols-2 gap-3 mt-5">
+            <div><label class="field">ວັນລັອກບັນຊີ <span class="hint">(ຫ້າມ Post ກ່ອນວັນນີ້)</span></label><input class="input" id="s-lock" type="date" value="${E(c.lock_date || "")}"></div>
+            <div><label class="field">ວົງເງິນຕ້ອງອະນຸມັດ <span class="hint">(0 = ປິດ)</span></label><input class="input" id="s-aplimit" type="text" inputmode="numeric" data-num value="${E((c.approval_limit || 0).toLocaleString("en-US"))}"></div>
+          </div>
+        </div></section>
+        <section class="st-sec" data-s="sec" hidden><div class="card p-5">
+          <h3 class="st-h">ສິດ ແລະ ຄວາມປອດໄພ</h3>
+          <div class="st-tiles">
+            ${tile("s-users", "👥", "ຜູ້ໃຊ້ & ຕຳແໜ່ງ", "ເພີ່ມຄົນ, ກຳນົດຕຳແໜ່ງ")}${tile("s-perms", "🔐", "Permissions Matrix", "ສິດແຕ່ລະຕຳແໜ່ງ")}${tile("guardlog", "🛡", "Guard Log", "ບັນທຶກການຖືກສະກັດ")}${tile("s-api", "🔌", "API ເຊື່ອມແອັບອື່ນ", "ຮັບຂໍ້ມູນຈາກ POS ແລະອື່ນໆ")}
+          </div>
+          <label class="st-check mt-5"><input type="checkbox" id="s-adv" ${c.show_advanced ? "checked" : ""}><span><b>ໂໝດຂັ້ນສູງ</b><small>ສະແດງ Tags, ຂະບວນການເອກະສານ, ແມ່ແບບ + ບັນຊີຂັ້ນສູງ (ECL, NRV, Impairment, Landed Cost, FX Adjust, Job Costing, Retention, BOM)</small></span></label>
+        </div></section>
+        <section class="st-sec" data-s="data" hidden><div class="card p-5">
+          <h3 class="st-h">ການເກັບຂໍ້ມູນ</h3>
           <div class="text-sm mb-3">${Store.mode === "cloud" ? '<span class="badge green">☁ Cloud · Google Sheet</span>' : '<span class="badge amber">💾 Demo Mode · ເກັບໃນ browser</span>'}</div>
           <div class="flex flex-wrap gap-2 mb-2"><button class="btn btn-primary btn-sm" id="s-backup">⬇ ສຳຮອງຂໍ້ມູນ (Backup)</button><button class="btn btn-ghost btn-sm" id="s-restore">⬆ ກູ້ຄືນ (Restore)</button></div>
           <p class="hint mb-3" id="s-backup-hint">${fableLastBackupText()}</p>
-          ${Store.mode === "demo" ? '<p class="hint mb-3">ເປີດ config.js ໃສ່ URL Apps Script ເພື່ອເກັບໃນ Google Sheet (ເບິ່ງ README.md)</p><button class="btn btn-danger" id="s-reset">ລ້າງຂໍ້ມູນ Demo</button> <button class="btn btn-danger" id="s-wipe">ລ້າງທັງໝົດ — ເລີ່ມບໍລິສັດເປົ່າ</button>' : ""}
-        </div>
-      </div>`;
+          ${Store.mode === "demo" ? '<p class="hint mb-3">ເປີດ config.js ໃສ່ URL Apps Script ເພື່ອເກັບໃນ Google Sheet (ເບິ່ງ README.md)</p><div class="st-danger"><b>ເຂດອັນຕະລາຍ</b><div class="flex flex-wrap gap-2 mt-2"><button class="btn btn-danger btn-sm" id="s-reset">ລ້າງຂໍ້ມູນ Demo</button><button class="btn btn-danger btn-sm" id="s-wipe">ລ້າງທັງໝົດ — ເລີ່ມບໍລິສັດເປົ່າ</button></div></div>' : ""}
+        </div></section>
+        <div class="st-save" id="s-savebar"><span class="hint">ການປ່ຽນໃນແຖບ ບໍລິສັດ / ການລົງບັນຊີ / ຂັ້ນສູງ ຈະບັນທຶກພ້ອມກັນ</span><button class="btn btn-primary" id="s-save">💾 ບັນທຶກ</button></div>
+      </div></div>`;
+    const showSec = k => { view().querySelectorAll(".st-sec").forEach(x => { x.hidden = x.dataset.s !== k; }); view().querySelectorAll(".st-tab").forEach(x => x.classList.toggle("on", x.dataset.sec === k)); view().querySelector("#s-savebar").hidden = k === "tax" || k === "data"; };
+    view().querySelectorAll(".st-tab").forEach(b => b.onclick = () => showSec(b.dataset.sec));
     bindMoneyInput(view().querySelector("#s-aplimit"));
     let _newLogo = null;
     const slg = view().querySelector("#s-logo");
