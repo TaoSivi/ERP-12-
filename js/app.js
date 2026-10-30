@@ -20,7 +20,6 @@
       ["procure", "", "ຈັດຊື້ (ຂໍ → ຮັບ → ຈ່າຍ)"],
       ["vendors", "", "ຜູ້ສະໜອງ & ໃບສັ່ງຊື້ (PO)"],
       ["bills", "", "Bill & ຄ່າໃຊ້ຈ່າຍ"],
-      ["disburse", "", "ຂໍເບີກ"],
       ["inventory", "", "ສິນຄ້າຄົງເຫຼືອ & ເອກະສານສາງ"] ] },
     { group: "🏦 ເງິນ", items: [
       ["banking", "", "ທະນາຄານ & ເງິນສົດ"],
@@ -46,7 +45,7 @@
       ["workflows", "", "ຂະບວນການເອກະສານ"],
       ["doctemplates", "", "ແມ່ແບບເອກະສານ"] ] }
   ];
-  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","hub","mytasks","disburse","requests","gate","procure","invoices","bills","banking","advances","posin","gl","review","assets","budget","reports","fs","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","hub","mytasks","disburse","requests","procure","customers","invoices","docs","announce"], Purchasing: ["dashboard","hub","mytasks","disburse","requests","gate","procure","vendors","bills","inventory","docs","announce"], Warehouse: ["dashboard","hub","mytasks","disburse","requests","procure","inventory","docs","announce"], HR: ["dashboard","hub","mytasks","disburse","requests","procure","payroll","departments","docs","announce"], Cashier: ["dashboard","hub","mytasks","disburse","requests","gate","procure","banking","advances","posin","docs","announce"], Manager: null, Auditor: ["dashboard","hub","mytasks","requests","gate","procure","gl","review","reports","fs","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","hub","mytasks","requests","gate","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
+  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","hub","mytasks","requests","gate","procure","invoices","bills","banking","advances","posin","gl","review","assets","budget","reports","fs","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","hub","mytasks","requests","procure","customers","invoices","docs","announce"], Purchasing: ["dashboard","hub","mytasks","requests","gate","procure","vendors","bills","inventory","docs","announce"], Warehouse: ["dashboard","hub","mytasks","requests","procure","inventory","docs","announce"], HR: ["dashboard","hub","mytasks","requests","procure","payroll","departments","docs","announce"], Cashier: ["dashboard","hub","mytasks","requests","gate","procure","banking","advances","posin","docs","announce"], Manager: null, Auditor: ["dashboard","hub","mytasks","requests","gate","procure","gl","review","reports","fs","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","hub","mytasks","requests","gate","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
   // "Advanced mode" (Settings): shows the DMS menu and the niche accounting buttons (see css/styles.css .adv rules)
   function advancedOn() { const c = Store.get("settings", "company") || {}; return !!c.show_advanced; }
   function applyAdvanced() { document.body.classList.toggle("adv-on", advancedOn()); }
@@ -1014,7 +1013,6 @@
             <div><label class="field">ວັນລັອກບັນຊີ (ຫ້າມ Post ກ່ອນວັນນີ້)</label><input class="input" id="s-lock" type="date" value="${E(c.lock_date || "")}"></div>
             <div><label class="field">ໂໝດຂັ້ນສູງ</label><label class="flex items-center gap-2 text-sm"><input type="checkbox" id="s-adv" ${c.show_advanced ? "checked" : ""}> ສະແດງ ເອກະສານ (DMS) + ບັນຊີຂັ້ນສູງ (ECL, NRV, Impairment, Landed Cost, FX Adjust, Job Costing, Retention, BOM)</label></div>
             <button class="btn btn-primary" id="s-save">ບັນທຶກ</button>
-            <div class="mt-4"><label class="field">ບົດບາດ (RBAC — ຄວບຄຸມເມນູ)</label><select class="input" id="s-role"></select></div>
             <div class="mt-3"><button class="btn btn-ghost btn-sm" id="s-company">ຈັດການບໍລິສັດ (Multi-company)</button> <button class="btn btn-ghost btn-sm" id="s-users">ຜູ້ໃຊ້</button> <button class="btn btn-ghost btn-sm" id="s-api">API ເຊື່ອມແອັບອື່ນ</button> <button class="btn btn-ghost btn-sm" id="s-perms">Permissions Matrix</button></div>
           </div>
         </div>
@@ -1050,7 +1048,6 @@
     const spo = view().querySelector("#s-posting"); if (spo) spo.onclick = () => postingRulesModal();
     const sam = view().querySelector("#s-map"); if (sam) sam.onclick = () => accountMappingModal();
     const smon = view().querySelector("#s-mon"); if (smon) smon.onclick = () => postingMonitorModal();
-    const rsel = view().querySelector("#s-role"); if (rsel) { rsel.innerHTML = Object.keys(ROLE_PERMS).map(r => `<option value="${r}" ${r === currentRole() ? "selected" : ""}>${r}</option>`).join(""); rsel.onchange = () => { try { localStorage.setItem("laobooks_role", rsel.value); localStorage.removeItem("laobooks_user"); } catch (e) {} renderUserChip(); buildNav(); UI.toast("ບົດບາດ: " + rsel.value, "ok"); location.hash = "#/dashboard"; }; }
     const scmp = view().querySelector("#s-company"); if (scmp) scmp.onclick = () => companySwitchModal();
     const sapi = view().querySelector("#s-api"); if (sapi) sapi.onclick = () => ExtInUI.open();
     const sus = view().querySelector("#s-users"); if (sus) sus.onclick = () => { location.hash = "#/usersadmin"; };
@@ -1188,15 +1185,6 @@
   }
 
   /* Stock adjustment */
-  function stockAdjustModal() {
-    const items = Store.where("items", i => i.type === "stock"); if (!items.length) return UI.toast("ບໍ່ມີສິນຄ້າ", "warn");
-    formModal("ປັບ Stock", [
-      { name: "item_id", label: "ສິນຄ້າ", type: "select", options: items.map(i => ({ value: i.id, label: i.name + " (ຄົງ " + Acc.stockQty(i.id) + ")" })) },
-      { name: "qtyDelta", label: "ປັບ (+ ເພີ່ມ / − ຫຼຸດ)", type: "number" },
-      { name: "kind", label: "ປະເພດການປັບ", type: "select", options: [{ value: "loss", label: "ເສຍຫາຍ / ຂາດສາງ / ຜົນນັບສາງ → ຄ່າໃຊ້ຈ່າຍທົ່ວໄປ" }, { value: "usage", label: "ໃຊ້ໃນການປຸງ/ຂາຍ (ວັດຖຸດິບທີ່ໃຊ້) → ຕົ້ນທຶນຂາຍ (COGS)" }] },
-      { name: "reason", label: "ເຫດຜົນ" }
-    ], {}, (d, close) => { if (!d.qtyDelta) return UI.toast("ໃສ່ຈຳນວນ", "warn"); Acc.stockAdjust({ item_id: d.item_id, qtyDelta: d.qtyDelta, reason: d.reason, kind: d.kind, date: UI.today() }); close(); inventory(); UI.toast("ປັບ stock ສຳເລັດ", "ok"); });
-  }
 
   /* Asset dispose */
   function disposeModal() {
@@ -1719,12 +1707,6 @@
     const party = pay.party_type === "customer" ? (Store.get("customers", pay.party_id) || {}).name : (Store.get("vendors", pay.party_id) || {}).name;
     const bank = Store.get("bank_accounts", pay.bank_account) || {};
     printHTML("Voucher " + pay.number, `<h2>${E(comp.name || "")}</h2><h3>${pay.type === "receive" ? "ໃບຮັບເງິນ" : (pay.type === "transfer" ? "ໃບໂອນເງິນ" : "ໃບຈ່າຍເງິນ")} ${E(pay.number)}</h3><p>ວັນທີ: ${UI.fmtDate(pay.date)}<br>${pay.type === "receive" ? "ຮັບຈາກ" : "ຈ່າຍໃຫ້"}: ${E(party || "-")}<br>ບັນຊີ: ${E(bank.name || "")}</p><p class="r" style="font-size:18px"><b>${M(pay.amount)}</b></p><br><br><p>ລາຍເຊັນ ...........................</p>`);
-  }
-  function prPrint(pr) {
-    const comp = activeCompany(); const lines = Store.where("pr_lines", l => l.pr_id === pr.id);
-    const rows = lines.map(l => { const it = Store.get("items", l.item_id) || {}; return `<tr><td>${E(it.name)}</td><td class="r">${l.qty}</td><td class="r">${M(l.price)}</td></tr>`; }).join("");
-    const qr = "https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=" + encodeURIComponent(pr.number);
-    printHTML("PR " + pr.number, `<div style="display:flex;justify-content:space-between"><div><h2>${E(comp.name || "")}</h2></div><img src="${qr}" width="90" height="90"></div><h3>ໃບຂໍຊື້ ${E(pr.number)}</h3><p>ຜູ້ຂໍ: ${E(pr.requester || "")}<br>ວັນທີ: ${UI.fmtDate(pr.date)}</p><table><tr><th>ສິນຄ້າ</th><th>ຈຳນວນ</th><th>ລາຄາ</th></tr>${rows}</table>`);
   }
 
   function periodPL(start, end) {
@@ -2300,13 +2282,6 @@
       <div class="flex justify-end gap-2 mt-3"><button class="btn btn-ghost" data-c>ປິດ</button>${sim.ok ? '<button class="btn btn-primary" id="pp-go">ລົງບັນຊີ</button>' : ""}</div>`, { wide: true });
     const go = document.getElementById("pp-go"); if (go) go.onclick = () => { document.querySelectorAll("[data-c]").forEach(b => b.click()); proceed(); };
   }
-  function grnPrint(id) {
-    const g = Store.get("grns", id); if (!g) return;
-    const po = Store.get("purchase_orders", g.po_id) || {}, v = Store.get("vendors", po.vendor_id) || {};
-    const rows = Store.where("grn_lines", l => l.grn_id === id).map((l, i) => { const pl = Store.get("po_lines", l.po_line_id) || {}, it = Store.get("items", pl.item_id) || {}; return [`${i + 1}. ${E(pl.description || it.name || "")}`, l.qty + " " + E(it.uom || ""), M(l.unit_cost), M(l.qty * l.unit_cost)]; });
-    proPrint("GRN " + g.number, { docTitle: "ໃບຮັບສິນຄ້າ / GOODS RECEIPT NOTE", meta: [["ເລກທີ", g.number], ["ວັນທີ", UI.fmtDate(g.date)], ["ອ້າງອີງ PO", po.number || "-"]], party: { title: "ຜູ້ສະໜອງ / Vendor", name: v.name || "-", sub: "" },
-      cols: ["ລາຍການ", "ຈຳນວນຮັບ", "ລາຄາ", "ລວມ"], rows, totals: [["ມູນຄ່າລວມ", M(g.total), true]], note: g.note, signLabels: ["ຜູ້ຮັບເຄື່ອງ / ຄັງ", "ຜູ້ສົ່ງ / Vendor"] });
-  }
   function jePrint(id) {
     const je = Store.get("journal_entries", id); if (!je) return;
     const rows = Store.where("journal_lines", l => l.je_id === id).map(l => [E(l.account + " " + String(l.account_name || "").replace(l.account + " ", "")), l.debit ? M(l.debit) : "", l.credit ? M(l.credit) : ""]);
@@ -2319,7 +2294,6 @@
     UI.modal("ໃບຄ່າເສື່ອມລາຄາ", `<div class="tbl-wrap"><table class="data"><thead><tr><th>ເລກທີ</th><th>ວັນທີ</th><th>ລາຍລະອຽດ</th><th class="num">ຍອດ</th><th></th></tr></thead><tbody>${jes.map(j => `<tr><td>${E(j.number)}</td><td>${E(j.date)}</td><td>${E(j.memo)}</td><td class="num">${M(j.total_debit)}</td><td><button class="btn btn-ghost btn-sm" data-pj="${j.id}">ພິມ</button></td></tr>`).join("") || '<tr><td colspan="5" class="text-center text-slate-400 py-4">ຍັງບໍ່ມີ</td></tr>'}</tbody></table></div>`, { wide: true });
     document.querySelectorAll("[data-pj]").forEach(b => b.onclick = () => jePrint(b.dataset.pj));
   }
-  window.addEventListener("click", e => { const g = e.target.closest && e.target.closest(".grn-print"); if (g) grnPrint(g.dataset.id); });
   function postingMonitorModal() {
     const h = PostMon.health(), src = PostMon.bySource(30), snaps = PostMon.snapshots(), hist = PostMon.ruleHistory(), errs = PostMon.errors();
     const dimName = { branch: "ສາຂາ", project: "ໂຄງການ" }, dimRows = k => PostMon.plBy(k).filter(r => r.value);
@@ -3818,36 +3792,6 @@
 
   /* ================= ຂໍເບີກ: one entry point for money requests ================= */
   // Pick what you need → fill the form → approvers sign → it posts itself. Engine and approval chain live in Flows.
-  function disburse() {
-    const role = currentRole(), KINDS = ["EXP", "PRJ", "ADV", "CLR"], canNew = canDo("create", "disburse");
-    const all = Store.all("requests").filter(r => KINDS.indexOf(r.type) !== -1).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
-    const waiting = Flows.queue(role).filter(r => KINDS.indexOf(r.type) !== -1);
-    const openOf = t => all.filter(r => t.indexOf(r.type) !== -1 && !Flows.ENDED[r.stage]).length;
-    const openAdv = Flows.openAdvances().length;
-    const tile = (type, ic, title, desc, n, extra) => `<div class="dz-tile"><button class="dz-main" data-dz="${type}" ${canNew ? "" : "disabled"}>
-        <span class="dz-ic">${Icons.svg(ic, 26)}</span><span class="dz-tx"><b>${E(title)}</b><span class="hint">${E(desc)}</span></span>${n ? `<span class="count">${n}</span>` : ""}</button>${extra || ""}</div>`;
-    view().innerHTML = UI.pageHead("ຂໍເບີກ", "ເລືອກປະເພດ → ກອກຟອມ → ອະນຸມັດ → ລົງບັນຊີອັດຕະໂນມັດ", "") +
-      (canNew ? "" : `<div class="booking mb-4">ບົດບາດ ${E(role)} ບໍ່ມີສິດສ້າງຄຳຂໍ ແຕ່ເບິ່ງສະຖານະໄດ້</div>`) +
-      `<div class="dz-grid mb-6">
-        ${tile("EXP", "banknote", "ຄ່າໃຊ້ຈ່າຍ", "ຈ່າຍຄ່າໃຊ້ຈ່າຍ ຫຼາຍໝວດໃນໃບດຽວ ຈາກທະນາຄານ/ເງິນສົດ", openOf(["EXP"]),
-          `<button class="dz-sub" data-dz="PRJ" ${canNew ? "" : "disabled"}>ຕົ້ນທຶນໂຄງການ (CIP) →</button>`)}
-        ${tile("ADV", "wallet", "ເງິນແຮ", "ເບີກເງິນແຮໃຫ້ຜູ້ຮັບ ແລ້ວເຄລຍດ້ວຍໃບບິນພາຍຫຼັງ", openOf(["ADV", "CLR"]),
-          `<button class="dz-sub" data-dz="CLR" ${canNew && openAdv ? "" : "disabled"}>ເຄລຍເງິນແຮ${openAdv ? " (" + openAdv + " ຄ້າງ)" : ""} →</button>`)}
-      </div>` +
-      `<div class="section-title">ລໍທ່ານ <span class="count ${waiting.length ? "" : "zero"}">${waiting.length}</span></div>` +
-      (waiting.length ? `<div class="ac-list cols mb-6">${waiting.slice(0, 6).map(x => `<div class="ac-card warn"><div class="ac-ic">${Icons.svg("clipboard", 20)}</div><div class="ac-body"><div class="ac-title">${E(x.number)} · ${E(x.purpose)}</div><div class="ac-meta">${E(x.payee || "")} · ${M(Flows.amountOf(x))}</div></div><button class="btn btn-primary btn-sm" data-dzo="${x.id}">ເປີດ</button></div>`).join("")}</div>` : `<div class="ac-empty mb-6">ບໍ່ມີຄຳຂໍລໍທ່ານ</div>`) +
-      `<div class="section-title">ຄຳຂໍລ່າສຸດ</div>` +
-      UI.table([
-        { h: "ເລກທີ", render: x => `<b>${E(x.number)}</b><div class="hint">${E(Flows.TYPES[x.type].label)}</div>` },
-        { h: "ລາຍລະອຽດ", render: x => `${E(x.purpose)}<div class="hint">${E(x.payee || "")}</div>` },
-        { h: "ຍອດ", cls: "num", render: x => M(Flows.amountOf(x)) },
-        { h: "ສະຖານະ", render: x => `<span class="chip ${x.stage === "closed" ? "s-done" : Flows.ENDED[x.stage] ? "s-bad" : x.stage === "draft" ? "s-draft" : "s-wait"}">${E(Flows.STAGE_LABEL[x.stage] || x.stage)}</span>` },
-        { h: "", render: x => `<button class="btn btn-ghost btn-sm" data-dzo="${x.id}">ເປີດ</button>` }
-      ], all.slice(0, 15));
-    const v = view();
-    v.querySelectorAll("[data-dz]").forEach(b => b.onclick = () => FlowsUI.newRequest(b.dataset.dz));
-    v.querySelectorAll("[data-dzo]").forEach(b => b.onclick = () => { location.hash = "#/requests?id=" + b.dataset.dzo; });
-  }
 
   function mytasks() {
     const role = currentRole();
@@ -3981,7 +3925,7 @@
     try { document.addEventListener("click", () => { window.__userActed = true; }, { once: true, capture: true }); setTimeout(() => { if (!window.__userActed) fableTour(); }, 800); } catch (e) {}
   }
 
-  const ROUTES = { hub: () => DocHub.page(), review: () => ReviewUI.page(), gate: () => GateUI.page(), fs: () => FSUI.page(), posin: () => PosinUI.page(), advances, disburse, procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };
+  const ROUTES = { hub: () => DocHub.page(), review: () => ReviewUI.page(), gate: () => GateUI.page(), fs: () => FSUI.page(), posin: () => PosinUI.page(), advances, disburse: () => { location.hash = "#/requests"; }, procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };
   function router() {
     const route = (location.hash.replace("#/", "") || "dashboard").split("?")[0];
     setActive(route);
@@ -4013,7 +3957,7 @@
     document.addEventListener("click", e => document.querySelectorAll("details.more-menu[open]").forEach(d => { if (!d.contains(e.target) || e.target.closest(".more-pop .btn")) d.removeAttribute("open"); }));
     window.AppCtx = { roles: () => Object.keys(ROLE_PERMS), slots: slotList, companyModal: companySwitchModal, refreshAll: () => { renderUserChip(); buildNav(); router(); }, menuFor: () => NAV.reduce((a, g) => a.concat(g.items.filter(([r]) => allowed(r) && !(g.adv && !advancedOn())).map(x => x[2].replace(/\s*\(.*\)$/, ""))), []), allowed, newInvoice, newBill, proPrint, attachDocs: attachDocsModal, docsCount: (t, id) => docsFor(t, id).length, userLabel: () => { const u = currentUser(); return u ? u.name : currentRole(); }, currentUserId: () => (currentUser() || {}).id || "", currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
     installGates(); buildNav(); setupSearch(); renderUserChip();
-    const ub = document.getElementById("userBtn"); if (ub) ub.onclick = userSwitchModal;
+    const ub = document.getElementById("userBtn"); if (ub) ub.onclick = () => { const v = document.getElementById("viewAs"); if (v) { v.focus(); try { v.showPicker(); } catch (e) {} } else userSwitchModal(); };
     document.getElementById("menuBtn").onclick = () => document.getElementById("sidebar").classList.toggle("-translate-x-full");
     document.getElementById("view").addEventListener("click", e => { const b = e.target.closest("[data-tool]"); if (b && TOOLS[b.dataset.tool]) TOOLS[b.dataset.tool](); });
     document.getElementById("nav").addEventListener("click", e => { const b = e.target.closest("[data-tool]"); if (b && TOOLS[b.dataset.tool]) TOOLS[b.dataset.tool](); });

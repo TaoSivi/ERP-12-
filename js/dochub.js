@@ -58,10 +58,11 @@
         <div class="dh-foot"><span class="dh-count${w ? " warn" : ""}">${w ? "⏳ ລໍອະນຸມັດ " + w : "ທັງໝົດ " + n}</span>
           <span class="dh-act">${canDo("create", d.route) ? `<button class="btn btn-primary btn-sm" data-new="${i}">+ ສ້າງ</button>` : ""}<a class="btn btn-ghost btn-sm" href="${d.list}">ເບິ່ງ</a></span></div></article>`; };
     view().innerHTML = `<div class="dh-top"><div><h1 class="page-title">ເອກະສານທັງໝົດ</h1><p class="page-sub">ເລືອກປະເພດ → ກົດ + ສ້າງ ເພື່ອເລີ່ມ. ລູກສອນ → ຄືລຳດັບເອກະສານທີ່ຕໍ່ກັນ.</p></div>
-        <a class="dh-wait${pend ? " on" : ""}" href="#/gate"><b>${pend}</b><span>ລໍອະນຸມັດ<br><small>ເອກະສານທັງໝົດ ${total}</small></span></a></div>
-      <input class="input dh-q" id="dh-q" type="search" placeholder="🔍 ຄົ້ນຫາ: ບິນ, ເງິນເດືອນ, ຮັບເຄື່ອງ, ຈ່າຍ..." value="${E(q)}">` +
+        <div class="dh-tools"><input class="input dh-q" id="dh-q" type="search" placeholder="🔍 ຄົ້ນຫາ: ບິນ, ເງິນເດືອນ, ຮັບເຄື່ອງ..." value="${E(q)}">
+        <a class="dh-wait${pend ? " on" : ""}" href="#/gate"><b>${pend}</b><span>ລໍອະນຸມັດ<br><small>ທັງໝົດ ${total}</small></span></a></div></div>
+      <div class="dh-lanes">` +
       LANES.map(l => { const ds = l.docs.map(i => DOCS[i]).filter(ok); return ds.length ? `<section class="dh-lane" data-lane><header><h2>${E(l.t)}</h2><span>${E(l.s)}</span></header><div class="dh-row">${ds.map((d, k) => tile(d, k + 1, l.flow && ds.length > 1)).join("")}</div></section>` : ""; }).join("") +
-      '<p class="hint mt-4" id="dh-none" style="display:none">ບໍ່ພົບເອກະສານທີ່ຄົ້ນຫາ</p>';
+      '</div><p class="hint mt-4" id="dh-none" style="display:none">ບໍ່ພົບເອກະສານທີ່ຄົ້ນຫາ</p>';
     const apply = () => { const t = view().querySelector("#dh-q").value.trim().toLowerCase(); let any = 0;
       view().querySelectorAll(".dh-tile").forEach(c => { const on = !t || c.dataset.name.indexOf(t) >= 0; c.style.display = on ? "" : "none"; if (on) any++; });
       view().querySelectorAll("[data-lane]").forEach(s => { s.style.display = Array.from(s.querySelectorAll(".dh-tile")).some(c => c.style.display !== "none") ? "" : "none"; });
