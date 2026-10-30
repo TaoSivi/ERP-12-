@@ -9,6 +9,7 @@
   const NAV = [
     { group: "🏠 ພາບລວມ & ອະນຸມັດ", items: [
       ["dashboard", "", "ໜ້າຫຼັກ"],
+      ["hub", "", "ເອກະສານທັງໝົດ (11 ປະເພດ)"],
       ["mytasks", "", "ວຽກຂອງຂ້ອຍ"],
       ["gate", "", "ເອກະສານລໍອະນຸມັດ"],
       ["requests", "", "ຄຳຂໍ & ອະນຸມັດ"] ] },
@@ -46,7 +47,7 @@
       ["workflows", "", "ຂະບວນການເອກະສານ"],
       ["doctemplates", "", "ແມ່ແບບເອກະສານ"] ] }
   ];
-  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","mytasks","disburse","requests","gate","procure","invoices","bills","banking","advances","posin","gl","review","assets","budget","reports","fs","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","mytasks","disburse","requests","gate","procure","pos","customers","invoices","reports","docs","announce","tags","workflows","doctemplates"], Purchasing: ["dashboard","mytasks","disburse","requests","gate","procure","vendors","bills","inventory","reports","docs","announce","tags","workflows","doctemplates"], Warehouse: ["dashboard","mytasks","disburse","requests","gate","procure","inventory","reports","docs","announce","tags","workflows","doctemplates"], HR: ["dashboard","mytasks","disburse","requests","gate","procure","payroll","reports","docs","announce","tags","workflows","doctemplates"], Cashier: ["dashboard","mytasks","disburse","requests","gate","procure","pos","banking","advances","posin","reports","docs","announce","tags","workflows","doctemplates"], Manager: null, Auditor: ["dashboard","mytasks","requests","gate","procure","gl","review","reports","fs","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","mytasks","requests","gate","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
+  const ROLE_PERMS = { Admin: null, Accountant: ["dashboard","hub","mytasks","disburse","requests","gate","procure","invoices","bills","banking","advances","posin","gl","review","assets","budget","reports","fs","settings","docs","announce","tags","workflows","doctemplates"], Sales: ["dashboard","hub","mytasks","disburse","requests","gate","procure","pos","customers","invoices","reports","docs","announce","tags","workflows","doctemplates"], Purchasing: ["dashboard","hub","mytasks","disburse","requests","gate","procure","vendors","bills","inventory","reports","docs","announce","tags","workflows","doctemplates"], Warehouse: ["dashboard","hub","mytasks","disburse","requests","gate","procure","inventory","reports","docs","announce","tags","workflows","doctemplates"], HR: ["dashboard","hub","mytasks","disburse","requests","gate","procure","payroll","reports","docs","announce","tags","workflows","doctemplates"], Cashier: ["dashboard","hub","mytasks","disburse","requests","gate","procure","pos","banking","advances","posin","reports","docs","announce","tags","workflows","doctemplates"], Manager: null, Auditor: ["dashboard","hub","mytasks","requests","gate","procure","gl","review","reports","fs","docs","announce","tags","workflows","doctemplates"], Viewer: ["dashboard","hub","mytasks","requests","gate","reports","docs","announce","tags","workflows","doctemplates"], Custom: null };
   // "Advanced mode" (Settings): shows the DMS menu and the niche accounting buttons (see css/styles.css .adv rules)
   function advancedOn() { const c = Store.get("settings", "company") || {}; return !!c.show_advanced; }
   function applyAdvanced() { document.body.classList.toggle("adv-on", advancedOn()); }
@@ -118,7 +119,7 @@
     if (window.Review) Review.applyView();
   }
   // phone-only tab bar: first 4 modules this role may open + "ເມນູ" (opens the full sidebar)
-  const BOTTOM = [["dashboard", "home", "ໜ້າຫຼັກ"], ["mytasks", "checkcircle", "ວຽກຂ້ອຍ"], ["invoices", "receipt", "Invoice"], ["bills", "inbox", "Bill"], ["pos", "cart", "POS"], ["inventory", "package", "ສິນຄ້າ"], ["reports", "trending", "ລາຍງານ"]];
+  const BOTTOM = [["dashboard", "home", "ໜ້າຫຼັກ"], ["hub", "receipt", "ເອກະສານ"], ["mytasks", "checkcircle", "ວຽກຂ້ອຍ"], ["invoices", "receipt", "Invoice"], ["bills", "inbox", "Bill"], ["pos", "cart", "POS"], ["inventory", "package", "ສິນຄ້າ"], ["reports", "trending", "ລາຍງານ"]];
   function buildBottomNav() {
     let bn = document.getElementById("bottomNav");
     if (!bn) { bn = document.createElement("nav"); bn.id = "bottomNav"; document.body.appendChild(bn); }
@@ -3967,7 +3968,7 @@
     try { document.addEventListener("click", () => { window.__userActed = true; }, { once: true, capture: true }); setTimeout(() => { if (!window.__userActed) fableTour(); }, 800); } catch (e) {}
   }
 
-  const ROUTES = { review: () => ReviewUI.page(), gate: () => GateUI.page(), fs: () => FSUI.page(), posin: () => PosinUI.page(), advances, disburse, procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };
+  const ROUTES = { hub: () => DocHub.page(), review: () => ReviewUI.page(), gate: () => GateUI.page(), fs: () => FSUI.page(), posin: () => PosinUI.page(), advances, disburse, procure: () => ProcureUI.page(), requests: () => FlowsUI.page(), dashboard, mytasks, pos, customers, invoices, vendors, bills, inventory, banking, gl, assets, payroll, budget, reports, settings, docs, tags: tagsPage, announce: announcePage, workflows: workflowsPage, doctemplates: docTemplatesPage, usersadmin: usersPage, departments: departmentsPage };
   function router() {
     const route = (location.hash.replace("#/", "") || "dashboard").split("?")[0];
     setActive(route);
@@ -3997,7 +3998,7 @@
 
   async function init() {
     document.addEventListener("click", e => document.querySelectorAll("details.more-menu[open]").forEach(d => { if (!d.contains(e.target) || e.target.closest(".more-pop .btn")) d.removeAttribute("open"); }));
-    window.AppCtx = { proPrint, attachDocs: attachDocsModal, docsCount: (t, id) => docsFor(t, id).length, userLabel: () => { const u = currentUser(); return u ? u.name : currentRole(); }, currentUserId: () => (currentUser() || {}).id || "", currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
+    window.AppCtx = { allowed, newInvoice, newBill, proPrint, attachDocs: attachDocsModal, docsCount: (t, id) => docsFor(t, id).length, userLabel: () => { const u = currentUser(); return u ? u.name : currentRole(); }, currentUserId: () => (currentUser() || {}).id || "", currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
     installGates(); buildNav(); setupSearch(); renderUserChip();
     const ub = document.getElementById("userBtn"); if (ub) ub.onclick = userSwitchModal;
     document.getElementById("menuBtn").onclick = () => document.getElementById("sidebar").classList.toggle("-translate-x-full");
