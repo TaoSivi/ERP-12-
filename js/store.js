@@ -21,7 +21,10 @@
     "precedents","guard_log","auto_runs","pr_quotes","approvals","grns","grn_lines","requests","request_lines","accruals","documents","doc_folders","announcements","announcement_acks","workflows","doc_templates","departments"
   ];
 
-  const LS_KEY = "laobooks_db_v1";
+  // each company has its own browser database: the first company keeps the original key, others get "__<slot>"
+  const SLOT = (() => { try { return localStorage.getItem("laobooks_db_slot") || ""; } catch (e) { return ""; } })();
+  const LS_KEY = "laobooks_db_v1" + (SLOT ? "__" + SLOT : "");
+  let hold = false; // batch(): hold writes, then save once
   let DB = {};
   let backend = null;
   let counter = 0;
@@ -41,7 +44,7 @@
       COLLECTIONS.forEach(c => (out[c] = data[c] || []));
       return out;
     },
-    persist() { localStorage.setItem(LS_KEY, JSON.stringify(DB)); },
+    persist() { if (hold) return; localStorage.setItem(LS_KEY, JSON.stringify(DB)); },
     async append() { this.persist(); },
     async update() { this.persist(); },
     async remove() { this.persist(); }
@@ -171,7 +174,7 @@
   }
 
   function seedDemo() {
-    if (!ERP_CONFIG.SEED_DEMO_DATA || localStorage.getItem("laobooks_no_seed")) return; // "start empty" sets the flag
+    if (!ERP_CONFIG.SEED_DEMO_DATA || localStorage.getItem("laobooks_no_seed") || SLOT) return; // "start empty" sets the flag
     if (DB.customers.length || DB.items.length) return;
     DB.customers.push({ id:uid("cust"), name:"ຮ້ານ ຄຳໃບ", tin:"2233445566", phone:"020 5555 1111", email:"khambai@example.la", address:"ນະຄອນຫຼວງວຽງຈັນ", currency:"LAK", terms:30, ar_account:"1200", credit_limit:50000000, status:"active", created_at:new Date().toISOString() });
     DB.customers.push({ id:uid("cust"), name:"ບໍລິສັດ ພູສີ ຈຳກັດ", tin:"9988776655", phone:"020 7777 2222", email:"phousi@example.la", address:"ຫຼວງພະບາງ", currency:"LAK", terms:15, ar_account:"1200", credit_limit:30000000, status:"active", created_at:new Date().toISOString() });
@@ -251,7 +254,14 @@
       if (backend === LocalBackend) LocalBackend.persist();
       else backend.remove(coll, id).catch(e => console.error(e));
     },
-    uid,
+    uid, slot: SLOT,
+    // many writes, one save; if anything throws (or the browser is out of space) the listed collections go back as they were
+    batch(colls, fn) {
+      const snap = {}; colls.forEach(c => { snap[c] = DB[c].slice(); });
+      hold = true;
+      try { const r = fn(); hold = false; if (backend === LocalBackend) LocalBackend.persist(); return r; }
+      catch (e) { hold = false; colls.forEach(c => { DB[c] = snap[c]; }); throw e; }
+    },
     // wipe demo data (only local)
     // empty = true → also skip the sample customers/items on the next start (a real, blank company)
     resetDemo(empty) { localStorage.removeItem(LS_KEY); if (empty) localStorage.setItem("laobooks_no_seed", "1"); else localStorage.removeItem("laobooks_no_seed"); }

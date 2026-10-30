@@ -735,7 +735,7 @@
   function gl() {
     let tab = "coa";
     function render() {
-      view().innerHTML = UI.pageHead("ບັນຊີແຍກປະເພດ", "General Ledger", `<button class="btn btn-ghost" id="ptax">ອາກອນກຳໄລ</button><button class="btn btn-ghost" id="obimport">Opening Bal</button><button class="btn btn-ghost" id="coalt">ນຳເຂົ້າຜັງບັນຊີ ລາວໃຕ້ (LT)</button><button class="btn btn-ghost" id="coaimport">Import CoA</button><button class="btn btn-primary" id="quickrec">⚡ Quick Record</button><button class="btn btn-ghost" id="coaexp">Export CoA</button><button class="btn btn-ghost" id="recur">Recurring</button><button class="btn btn-ghost" id="fxadj">FX Adjust</button><button class="btn btn-ghost" id="yearend">ປິດສິ້ນປີ</button><button class="btn btn-primary" id="je">+ ບັນທຶກ JE</button>`) +
+      view().innerHTML = UI.pageHead("ບັນຊີແຍກປະເພດ", "General Ledger", `<button class="btn btn-ghost" id="ptax">ອາກອນກຳໄລ</button><button class="btn btn-ghost" id="obimport">Opening Bal</button><button class="btn btn-ghost" id="jvimport">ນຳເຂົ້າປຶ້ມບັນຊີປະຈຳວັນ</button><button class="btn btn-ghost" id="coalt">ນຳເຂົ້າຜັງບັນຊີ ລາວໃຕ້ (LT)</button><button class="btn btn-ghost" id="coaimport">Import CoA</button><button class="btn btn-primary" id="quickrec">⚡ Quick Record</button><button class="btn btn-ghost" id="coaexp">Export CoA</button><button class="btn btn-ghost" id="recur">Recurring</button><button class="btn btn-ghost" id="fxadj">FX Adjust</button><button class="btn btn-ghost" id="yearend">ປິດສິ້ນປີ</button><button class="btn btn-primary" id="je">+ ບັນທຶກ JE</button>`) +
         `<div class="flex gap-1 mb-4 border-b border-slate-200 flex-wrap">
           ${["coa|ຜັງບັນຊີ", "tb|Trial Balance", "journal|Journal", "pl|ກຳໄລ-ຂາດທຶນ", "bs|ໃບດຸ່ນດ່ຽງ"].map(t => { const [k, l] = t.split("|"); return `<span class="tab ${tab === k ? "active" : ""}" data-tab="${k}">${l}</span>`; }).join("")}
         </div><div id="glbody"></div>`;
@@ -750,6 +750,7 @@
       view().querySelector("#ptax").onclick = () => profitTaxModal();
       view().querySelector("#coaimport").onclick = () => importCoaCSV();
       view().querySelector("#coalt").onclick = () => importCoaLT();
+      view().querySelector("#jvimport").onclick = () => JVImport.modal();
       const b = view().querySelector("#glbody");
       if (tab === "coa") b.innerHTML = glCoA();
       else if (tab === "tb") b.innerHTML = glTB();
@@ -1623,15 +1624,26 @@
     const cs = Store.all("companies"); if (cs.length) return cs[0];
     return Store.get("settings", "company") || {};
   }
+  // Every company is its own database in this browser (accounts, journals, stock ... never mix). The list lives outside the databases.
+  const slotList = () => { try { return JSON.parse(localStorage.getItem("laobooks_db_slots") || "[]"); } catch (e) { return []; } };
+  function slotSave(list) { try { localStorage.setItem("laobooks_db_slots", JSON.stringify(list)); } catch (e) {} }
+  function slotRemember() { const c = activeCompany() || {}, l = slotList().filter(x => x.slot !== Store.slot); l.push({ slot: Store.slot, name: c.name || "ບໍລິສັດ", tin: c.tin || "" }); l.sort((x, y) => (x.slot === "" ? -1 : y.slot === "" ? 1 : 0)); slotSave(l); }
+  function switchSlot(slot) { try { if (slot) localStorage.setItem("laobooks_db_slot", slot); else localStorage.removeItem("laobooks_db_slot"); } catch (e) {} location.hash = "#/dashboard"; location.reload(); }
   function companySwitchModal() {
-    const rows = Store.all("companies"); let active; try { active = localStorage.getItem("laobooks_company"); } catch (e) {}
-    if (!active && rows.length) active = rows[0].id;
-    const body = rows.map(c => `<tr><td>${E(c.name)}</td><td>${E(c.tin || "")}</td><td>${c.id === active ? '<span class="badge green">ໃຊ້ຢູ່</span>' : `<button class="btn btn-ghost btn-sm" data-set="${c.id}">ໃຊ້</button>`}</td></tr>`).join("");
-    UI.modal("ຈັດການບໍລິສັດ (Multi-company)", `<p class="hint mb-2">ໝາຍເຫດ: ຂໍ້ມູນທຸລະກຳໃຊ້ຮ່ວມກັນ — ໂປຣໄຟລ໌ນີ້ໃຊ້ສະແດງໃນເອກະສານ/ໃບພິມ</p><button class="btn btn-primary btn-sm mb-3" id="cmp-add">+ ບໍລິສັດ</button>
-      <table class="data"><thead><tr><th>ຊື່</th><th>TIN</th><th></th></tr></thead><tbody>${body || '<tr><td colspan=3 class="text-center text-slate-400 py-3">ຍັງບໍ່ມີ</td></tr>'}</tbody></table>`,
+    slotRemember();
+    const rows = slotList(), cloud = Store.mode === "cloud";
+    const body = rows.map(c => `<tr><td><b>${E(c.name)}</b></td><td>${E(c.tin || "")}</td><td>${c.slot === Store.slot ? '<span class="badge green">ໃຊ້ຢູ່</span>' : `<button class="btn btn-ghost btn-sm" data-set="${E(c.slot)}">ເປີດບໍລິສັດນີ້</button>`}</td></tr>`).join("");
+    UI.modal("ບໍລິສັດ (ແຕ່ລະບໍລິສັດມີຖານຂໍ້ມູນແຍກ)", `<p class="hint mb-2">ແຕ່ລະບໍລິສັດມີບັນຊີ, ສະຕັອກ, ເອກະສານຂອງຕົນເອງ ບໍ່ປົນກັນ. ສະຫຼັບໄດ້ທຸກເວລາ. ${cloud ? '<b class="text-amber-700">ໂໝດ Google Sheet ໃຊ້ Sheet ດຽວ — ຫຼາຍບໍລິສັດຕ້ອງໃຊ້ໂໝດ Demo ຫຼື ແຍກ Sheet.</b>' : "ຂໍ້ມູນເກັບໃນ browser ນີ້ — Export ສຳຮອງເປັນໄລຍະ."}</p>
+      <div class="flex justify-end mb-2"><button class="btn btn-primary btn-sm" id="cmp-add">+ ບໍລິສັດໃໝ່ (ຖານຂໍ້ມູນເປົ່າ)</button></div>
+      <table class="data"><thead><tr><th>ຊື່</th><th>TIN</th><th></th></tr></thead><tbody>${body}</tbody></table>`,
       { wide: true, onMount: (bd, close) => {
-        bd.querySelector("#cmp-add").onclick = () => formModal("ບໍລິສັດໃໝ່", [{ name: "name", label: "ຊື່ບໍລິສັດ" }, { name: "tin", label: "TIN" }], {}, (d, c2) => { Store.insert("companies", { name: d.name, tin: d.tin, logo: "" }); c2(); close(); companySwitchModal(); });
-        bd.querySelectorAll("[data-set]").forEach(b => b.onclick = () => { try { localStorage.setItem("laobooks_company", b.dataset.set); } catch (e) {} close(); UI.toast("ປ່ຽນບໍລິສັດແລ້ວ", "ok"); boot(); });
+        bd.querySelector("#cmp-add").onclick = () => formModal("ບໍລິສັດໃໝ່", [{ name: "name", label: "ຊື່ບໍລິສັດ" }, { name: "tin", label: "TIN" }], {}, (d, c2) => {
+          if (!String(d.name || "").trim()) return UI.toast("ໃສ່ຊື່ບໍລິສັດ", "warn");
+          const slot = "c" + Date.now().toString(36), l = slotList(); l.push({ slot, name: d.name.trim(), tin: d.tin || "" }); slotSave(l);
+          try { localStorage.setItem("laobooks_slot_init__" + slot, JSON.stringify({ name: d.name.trim(), tin: d.tin || "" })); } catch (e) {}
+          c2(); switchSlot(slot);
+        });
+        bd.querySelectorAll("[data-set]").forEach(b => b.onclick = () => switchSlot(b.dataset.set));
       }});
   }
 
@@ -3969,10 +3981,11 @@
   async function boot() {
     applyAdvanced();
     autopostOnOpen();
+    try { const k = "laobooks_slot_init__" + Store.slot, pi = Store.slot && localStorage.getItem(k); if (pi) { const d = JSON.parse(pi); Store.update("settings", "company", { name: d.name, tin: d.tin }); localStorage.removeItem(k); } } catch (e) { console.warn("slot init:", e); }
     if (!Store.all("companies").length) { const sc = Store.get("settings", "company") || {}; Store.insert("companies", { name: sc.name || "ບໍລິສັດ", tin: sc.tin || "", logo: "" }); }
     [["1250","ເງິນຄ້ຳປະກັນຮັບ (Retention)","Asset"],["1350","ງານລະຫວ່າງດຳເນີນ (WIP)","Asset"],["2550","ເງິນຄ້ຳປະກັນຈ່າຍ","Liability"],["2600","ອາກອນກຳໄລ ຄ້າງຈ່າຍ","Liability"],["5600","ຄ່າອາກອນກຳໄລ","Expense"]].forEach(function(a){ if (!Store.where("accounts", x => x.code === a[0]).length) Store.insert("accounts", { id: "acc_" + a[0], code: a[0], name: a[1], type: a[2], is_header: 0, is_active: 1 }); });
     const c = activeCompany();
-    if (c) { document.getElementById("companyName").textContent = c.name; }
+    if (c) { const cn = document.getElementById("companyName"); cn.textContent = c.name; cn.style.cursor = "pointer"; cn.title = "ປ່ຽນບໍລິສັດ"; cn.onclick = companySwitchModal; slotRemember(); }
     const badge = document.getElementById("conn-badge");
     badge.innerHTML = Store.mode === "cloud" ? '<span class="text-green-400">● Google Sheet</span>' : '<span class="text-amber-400">● Demo Mode</span>';
     try { fableInit(); } catch (e) { console.warn("fableInit:", e); }
