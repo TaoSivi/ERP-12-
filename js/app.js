@@ -1070,7 +1070,7 @@
       Store.all("items").forEach(i => (i.name.toLowerCase().includes(q) || (i.sku || "").toLowerCase().includes(q)) && hits.push(["📦 ສິນຄ້າ", i.name, "#/inventory"]));
       Store.all("invoices").forEach(i => (i.number || "").toLowerCase().includes(q) && hits.push(["🧾 Invoice", i.number, "#/invoices"]));
       Store.all("bills").forEach(b => (b.number || "").toLowerCase().includes(q) && hits.push(["📥 Bill", b.number, "#/bills"]));
-      Store.all("documents").forEach(dd => ((dd.name || "").toLowerCase().includes(q) || String(dd.tags || "").toLowerCase().includes(q)) && hits.push(["📁 ເອກະສານ", dd.name, "#/docs"]));
+      Store.all("documents").filter(Filing.visible).forEach(dd => ((dd.name || "").toLowerCase().includes(q) || String(dd.tags || "").toLowerCase().includes(q)) && hits.push(["📁 ເອກະສານ", dd.name, "#/docs"]));
       box.innerHTML = hits.length ? hits.slice(0, 12).map(([t, n, h]) => `<a href="${h}" class="block px-3 py-2 hover:bg-slate-50 text-sm border-b border-slate-100"><span class="text-slate-400">${t}</span> · ${E(n)}</a>`).join("") : '<div class="px-3 py-3 text-sm text-slate-400">ບໍ່ພົບ</div>';
       box.classList.remove("hidden");
     };
@@ -2661,7 +2661,7 @@
       Store.all("items").forEach(i => { if ((i.name || "").toLowerCase().includes(ql) || (i.sku || "").toLowerCase().includes(ql)) items.push({ ic: "📦", t: i.name, sub: "ສິນຄ້າ", run: () => { location.hash = "#/inventory"; } }); });
       Store.all("invoices").forEach(i => { if ((i.number || "").toLowerCase().includes(ql)) items.push({ ic: "🧾", t: i.number, sub: "Invoice", run: () => { location.hash = "#/invoices"; setTimeout(() => { try { viewInvoice(i.id); } catch (e) {} }, 150); } }); });
       Store.all("bills").forEach(b => { if ((b.number || "").toLowerCase().includes(ql)) items.push({ ic: "📥", t: b.number, sub: "Bill", run: () => { location.hash = "#/bills"; } }); });
-      Store.all("documents").forEach(dd => { if ((dd.name || "").toLowerCase().includes(ql) || String(dd.tags || "").toLowerCase().includes(ql)) items.push({ ic: "📁", t: dd.name, sub: "ເອກະສານ", run: () => { location.hash = "#/docs"; } }); });
+      Store.all("documents").filter(Filing.visible).forEach(dd => { if ((dd.name || "").toLowerCase().includes(ql) || String(dd.tags || "").toLowerCase().includes(ql)) items.push({ ic: "📁", t: dd.name, sub: "ເອກະສານ", run: () => { location.hash = "#/docs"; } }); });
     }
     const ql2 = (q || "").toLowerCase();
     return items.filter(x => !ql2 || x.t.toLowerCase().includes(ql2) || (x.sub || "").toLowerCase().includes(ql2)).slice(0, 10);
@@ -3249,6 +3249,7 @@
     Acc.audit("doc_download", "documents", d.id, d.name);
   }
   function docPreview(d) {
+    if (d.auto) { location.hash = Filing.where(d.ref_type) || "#/hub"; return; }
     if (d.drive_url && !docFileGet(d.id)) { window.open(d.drive_url, "_blank"); return; }
     const data = docFileGet(d.id);
     if (!data) return UI.toast("ບໍ່ພົບໄຟລ໌", "err");
@@ -3398,7 +3399,7 @@
   let docFilter = { folder: "all", status: "", tag: "", q: "", ext: "", from: "", to: "" };
   let docSel = new Set();
   function docs() {
-    const all = Store.all("documents");
+    const all = Store.all("documents").filter(d => Filing.visible(d) && Filing.alive(d));
     const folders = Store.all("doc_folders");
     const tags = [...new Set(all.flatMap(d => String(d.tags || "").split(",").filter(Boolean)))].sort();
     const cnt = s => all.filter(d => (d.status || "draft") === s).length;
@@ -3448,11 +3449,11 @@
             const st = d.status || "draft";
             const mine = d.created_role === currentRole();
             const chain = d.approvers && d.approvers.length ? d.approvers : null;
-            let acts = `<button class="btn btn-ghost btn-sm" data-dl="${E(d.id)}">⬇</button><button class="btn btn-ghost btn-sm" data-pv="${E(d.id)}">👁</button>`;
-            if ((st === "draft" || st === "rejected" || st === "revision")) acts += `<button class="btn btn-ghost btn-sm" data-sub="${E(d.id)}">📨 ${st === "revision" ? "ສົ່ງຄືນ" : "ຂໍອະນຸມັດ"}</button>`;
+            let acts = d.auto ? `<button class="btn btn-ghost btn-sm" data-pv="${E(d.id)}">👁 ເປີດ</button>` : `<button class="btn btn-ghost btn-sm" data-dl="${E(d.id)}">⬇</button><button class="btn btn-ghost btn-sm" data-pv="${E(d.id)}">👁</button>`;
+            if (!d.auto && (st === "draft" || st === "rejected" || st === "revision")) acts += `<button class="btn btn-ghost btn-sm" data-sub="${E(d.id)}">📨 ${st === "revision" ? "ສົ່ງຄືນ" : "ຂໍອະນຸມັດ"}</button>`;
             if (st === "pending" && docCanApproveThis(d)) acts += `<button class="btn btn-primary btn-sm" data-ok="${E(d.id)}">✅ ອະນຸມັດ</button><button class="btn btn-ghost btn-sm" data-rev="${E(d.id)}">✎ ຂໍແກ້</button><button class="btn btn-danger btn-sm" data-no="${E(d.id)}">✕</button>`;
-            if (st === "approved" && canApprove()) acts += `<button class="btn btn-ghost btn-sm" data-pub="${E(d.id)}">📢 ເຜີຍແຜ່</button>`;
-            acts += `<button class="btn btn-ghost btn-sm" data-ed="${E(d.id)}">✎</button>`;
+            if (!d.auto && st === "approved" && canApprove()) acts += `<button class="btn btn-ghost btn-sm" data-pub="${E(d.id)}">📢 ເຜີຍແຜ່</button>`;
+            if (!d.auto) acts += `<button class="btn btn-ghost btn-sm" data-ed="${E(d.id)}">✎</button>`;
             if (docCanDelete(d)) acts += `<button class="btn btn-ghost btn-sm text-red-500" data-del="${E(d.id)}">🗑</button>`;
             const ref = docRefName(d);
             const chainHtml = chain ? `<span class="badge ${st === "approved" || st === "published" ? "green" : "amber"}">🔁 ຂັ້ນ ${Math.min((d.approval_step || 0) + (st === "approved" || st === "published" ? 0 : 1), chain.length)}/${chain.length}: ${E(chain.map((r, i) => (i < (d.approval_step || 0) || st === "approved" || st === "published") ? "✓" + r : r).join(" → "))}</span>` : "";
