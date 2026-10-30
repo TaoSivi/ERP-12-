@@ -117,6 +117,7 @@
     });
     buildBottomNav();
     if (window.Review) Review.applyView();
+    if (window.Entry) Entry.viewAsRefresh();
   }
   // phone-only tab bar: first 4 modules this role may open + "ເມນູ" (opens the full sidebar)
   const BOTTOM = [["dashboard", "home", "ໜ້າຫຼັກ"], ["hub", "receipt", "ເອກະສານ"], ["mytasks", "checkcircle", "ວຽກຂ້ອຍ"], ["invoices", "receipt", "Invoice"], ["bills", "inbox", "Bill"], ["pos", "cart", "POS"], ["inventory", "package", "ສິນຄ້າ"], ["reports", "trending", "ລາຍງານ"]];
@@ -3990,7 +3991,7 @@
     if (!Store.all("companies").length) { const sc = Store.get("settings", "company") || {}; Store.insert("companies", { name: sc.name || "ບໍລິສັດ", tin: sc.tin || "", logo: "" }); }
     [["1250","ເງິນຄ້ຳປະກັນຮັບ (Retention)","Asset"],["1350","ງານລະຫວ່າງດຳເນີນ (WIP)","Asset"],["2550","ເງິນຄ້ຳປະກັນຈ່າຍ","Liability"],["2600","ອາກອນກຳໄລ ຄ້າງຈ່າຍ","Liability"],["5600","ຄ່າອາກອນກຳໄລ","Expense"]].forEach(function(a){ if (!Store.where("accounts", x => x.code === a[0]).length) Store.insert("accounts", { id: "acc_" + a[0], code: a[0], name: a[1], type: a[2], is_header: 0, is_active: 1 }); });
     const c = activeCompany();
-    if (c) { const cn = document.getElementById("companyName"); cn.textContent = c.name; cn.style.cursor = "pointer"; cn.title = "ປ່ຽນບໍລິສັດ"; cn.onclick = companySwitchModal; slotRemember(); }
+    if (c) { const cn = document.getElementById("companyName"); cn.textContent = c.name; cn.style.cursor = "pointer"; cn.title = "ປ່ຽນບໍລິສັດ"; cn.onclick = () => (currentRole() === "Admin" && !currentUser() ? companySwitchModal() : Entry.gate(true)); slotRemember(); }
     const badge = document.getElementById("conn-badge");
     badge.innerHTML = Store.mode === "cloud" ? '<span class="text-green-400">● Google Sheet</span>' : '<span class="text-amber-400">● Demo Mode</span>';
     try { fableInit(); } catch (e) { console.warn("fableInit:", e); }
@@ -3998,7 +3999,7 @@
 
   async function init() {
     document.addEventListener("click", e => document.querySelectorAll("details.more-menu[open]").forEach(d => { if (!d.contains(e.target) || e.target.closest(".more-pop .btn")) d.removeAttribute("open"); }));
-    window.AppCtx = { allowed, newInvoice, newBill, proPrint, attachDocs: attachDocsModal, docsCount: (t, id) => docsFor(t, id).length, userLabel: () => { const u = currentUser(); return u ? u.name : currentRole(); }, currentUserId: () => (currentUser() || {}).id || "", currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
+    window.AppCtx = { roles: () => Object.keys(ROLE_PERMS), slots: slotList, companyModal: companySwitchModal, refreshAll: () => { renderUserChip(); buildNav(); router(); }, menuFor: () => NAV.reduce((a, g) => a.concat(g.items.filter(([r]) => allowed(r) && !(g.adv && !advancedOn())).map(x => x[2].replace(/\s*\(.*\)$/, ""))), []), allowed, newInvoice, newBill, proPrint, attachDocs: attachDocsModal, docsCount: (t, id) => docsFor(t, id).length, userLabel: () => { const u = currentUser(); return u ? u.name : currentRole(); }, currentUserId: () => (currentUser() || {}).id || "", currentRole, canApprove, guardedPost, poPrint, canDo, printHTML, company: () => Object.assign({}, Store.get("settings", "company") || {}, activeCompany() || {}) };
     installGates(); buildNav(); setupSearch(); renderUserChip();
     const ub = document.getElementById("userBtn"); if (ub) ub.onclick = userSwitchModal;
     document.getElementById("menuBtn").onclick = () => document.getElementById("sidebar").classList.toggle("-translate-x-full");
@@ -4007,6 +4008,7 @@
     view().innerHTML = '<div class="text-center text-slate-400 py-20">ກຳລັງໂຫລດ...</div>';
     try { await Store.boot(); } catch (e) { view().innerHTML = '<div class="card p-6 text-red-600">ເຊື່ອມຕໍ່ບໍ່ສຳເລັດ: ' + E(e.message) + '<br><span class="hint">ກວດ URL ໃນ config.js ຫຼື ປະໄວ້ວ່າງເພື່ອໃຊ້ Demo Mode</span></div>'; return; }
     await boot();
+    if (window.Entry) { Entry.mountViewAs(); Entry.gate(); }
     window.addEventListener("hashchange", router);
     router();
     // ST POS → ERP: pull the closed days and post the clean ones by themselves

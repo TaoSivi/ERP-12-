@@ -189,3 +189,19 @@ body.no-acct .acct-only { display: none !important; }
 .dh-stats { display: flex; gap: 8px; flex-wrap: wrap; }
 .dh-btns { display: flex; gap: 8px; margin-top: auto; }
 .dh-btns .btn { min-height: 44px; flex: 1; justify-content: center; text-align: center; }
+
+/* view-as dropdown + company/person entry */
+.viewas { height: 38px; width: auto; max-width: 190px; padding: 0 28px 0 12px; border-radius: 999px; font-size: 13px; font-weight: 700; background-color: #fff; }
+.viewas.viewas-on { border-color: #f4b740; background-color: #fff8e6; color: #8a5a00; }
+@media (max-width: 640px) { .viewas { max-width: 120px; padding-left: 8px; } }
+.entry-layer { position: fixed; inset: 0; z-index: 300; background: radial-gradient(ellipse at top, #0c5753 0%, var(--ink, #062f2d) 70%); display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto; }
+.entry-box { width: 100%; max-width: 460px; background: #fff; border-radius: 28px; padding: 28px 22px 22px; box-shadow: 0 24px 60px rgba(0,0,0,.35); text-align: center; }
+.entry-logo { width: 56px; height: 56px; margin: 0 auto 10px; border-radius: 18px; background: var(--ink, #062f2d); color: #7ff0e9; font-weight: 800; font-size: 21px; display: flex; align-items: center; justify-content: center; }
+.entry-box h1 { font-size: 22px; font-weight: 800; }
+.entry-box p { color: #4d7471; font-size: 14px; margin: 4px 0 16px; }
+.entry-list { display: flex; flex-direction: column; gap: 10px; max-height: 56vh; overflow-y: auto; text-align: left; }
+.entry-item { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 10px 14px; border-radius: 18px; background: #f2f9f8; border: 2px solid transparent; cursor: pointer; font-size: 16px; }
+.entry-item:hover, .entry-item:focus-visible { border-color: var(--mint, #0abab5); background: #e6f6f5; outline: none; }
+.entry-item small { display: block; color: #4d7471; font-size: 12.5px; font-weight: 500; }
+.entry-ic { width: 40px; height: 40px; border-radius: 14px; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; flex: none; }
+.entry-back { margin-top: 14px; }
