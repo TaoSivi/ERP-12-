@@ -174,3 +174,6 @@ label.field { color: var(--muted); font-weight: 700; }
 .nav-box.open > .nav-sub { display: block; }
 .nav-sub .nav-item { margin-left: 14px; height: 40px; }
 @media (prefers-reduced-motion: reduce) { .nav-chev { transition: none; } }
+
+/* staff (roles without the ledger) never see accounting boxes */
+body.no-acct .acct-only { display: none !important; }

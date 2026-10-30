@@ -32,7 +32,7 @@
       ${(m.totals || []).length ? `<div style="display:flex;justify-content:flex-end;margin-top:10px"><div style="min-width:280px;background:${C.soft};border-radius:14px;padding:10px 16px;font-size:15px">${m.totals.map(t => `<div style="display:flex;justify-content:space-between;gap:24px;${t[2] ? "font-weight:800;font-size:17px;" : "color:" + C.mute + ";"}padding:2px 0"><span>${E(t[0])}</span><span>${E(t[1])}</span></div>`).join("")}</div></div>` : ""}`;
   }
   function journal(m) {
-    if (!m.journal || !m.journal.length) return "";
+    if (!m.journal || !m.journal.length || (window.Cat && !Cat.sees())) return "";
     return `<div style="margin-top:20px"><div style="font-weight:800;font-size:13px;margin-bottom:4px">${E(m.journalTitle || "ການລົງບັນຊີ")}</div>${m.journal.map(j => `<div style="font-size:12px;color:${C.mute};margin:6px 0 2px">${E(j.memo || "")}</div>
       <table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr>${th("ບັນຊີ")}${th("Dr", 1)}${th("Cr", 1)}</tr></thead><tbody>${j.lines.map(l => `<tr>${td(E(String(l.name || l.account)))}${td(l.debit ? M(l.debit) : "", 1)}${td(l.credit ? M(l.credit) : "", 1)}</tr>`).join("")}</tbody></table>`).join("")}</div>`;
   }

@@ -16,7 +16,7 @@
   }
 
   function form(type) {
-    const items = stockItems(), exp = Store.where("accounts", a => a.type === "Expense" && !a.is_header);
+    const items = stockItems(), exp = Cat.accounts(Store.where("accounts", a => a.type === "Expense" && !a.is_header), "expense");
     const opts = items.map(i => `<option value="${i.id}">${E(i.name)} (ຄົງ ${Acc.stockQty(i.id)} ${E(i.uom || "")})</option>`).join("");
     const colHead = type === "ISS" ? "ຈຳນວນຈ່າຍ" : type === "ADJ" ? "ປັບ (+ເພີ່ມ / −ຫຼຸດ)" : "ນັບໄດ້ຈິງ";
     UI.modal(StockDoc.LABEL[type], `<div class="grid sm:grid-cols-2 gap-3 mb-3">

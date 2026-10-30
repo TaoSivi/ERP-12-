@@ -11,7 +11,7 @@
    ============================================================ */
 (function () {
   const REG = {};
-  const DEFAULT_ON = { PAYV: true, PAYC: true, DEPR: true, PAYROLL: true }; // GRN and RCPT happen all day → off unless switched on
+  const DEFAULT_ON = { JEFIX: true, PAYV: true, PAYC: true, DEPR: true, PAYROLL: true }; // GRN and RCPT happen all day → off unless switched on
   const STAGE = { approval: "ລໍອະນຸມັດ", posted: "ລົງບັນຊີແລ້ວ", rejected: "ປະຕິເສດ", cancelled: "ຍົກເລີກ", failed: "ລົງບັນຊີບໍ່ໄດ້" };
   const me = () => (window.AppCtx && AppCtx.userLabel && AppCtx.userLabel()) || "";
   const uid = () => (window.AppCtx && AppCtx.currentUserId && AppCtx.currentUserId()) || "";

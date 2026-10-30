@@ -153,7 +153,7 @@
       number: nextNumber("JE", "journal_entries", date),
       date: date || new Date().toISOString().slice(0, 10),
       source_type, source_id, memo: memo || "",
-      total_debit: td, total_credit: tc, status: "posted", posted_by: who(), rule_ver: ((Store.get("settings", "posting_history") || {}).items || []).length, dim: dim && Object.keys(dim).some(k => dim[k]) ? dim : undefined,
+      total_debit: td, total_credit: tc, status: "posted", posted_by: who(), rule_ver: ((Store.get("settings", "posting_history") || {}).items || []).length, review: window.Review && Review.needs(source_type, td, cleaned) ? "pending" : undefined, dim: dim && Object.keys(dim).some(k => dim[k]) ? dim : undefined,
       created_at: new Date().toISOString()
     });
     cleaned.forEach(l => Store.insert("journal_lines", { je_id: je.id, account: l.account, account_name: l.account_name, debit: l.debit, credit: l.credit, memo: l.memo }));

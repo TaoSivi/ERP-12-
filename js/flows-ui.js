@@ -98,7 +98,7 @@
       <datalist id="rq-emps">${emps.map(n => `<option value="${E(n)}">`).join("")}</datalist>`, { wide: true, onMount: (bd, close) => {
         const q = s => bd.querySelector(s);
         const linesTable = () => `<div class="overflow-x-auto mt-3"><table class="data"><thead><tr><th>ໝວດຄ່າໃຊ້ຈ່າຍ</th><th>ລາຍລະອຽດ</th><th>ເລກທີ່ບິນ *</th><th class="num">ຍອດຕາມບິນ</th><th>VAT</th><th></th></tr></thead><tbody>
-          ${lines.map((l, i) => `<tr><td style="min-width:170px"><select class="input" data-i="${i}" data-k="account">${expAccounts().map(a => `<option value="${a.code}" ${a.code === l.account ? "selected" : ""}>${E(a.name)}</option>`).join("")}</select></td>
+          ${lines.map((l, i) => `<tr><td style="min-width:170px"><select class="input" data-i="${i}" data-k="account">${Cat.accounts(expAccounts(), "expense", l.account).map(a => `<option value="${a.code}" ${a.code === l.account ? "selected" : ""}>${E(Cat.label(a, "expense"))}</option>`).join("")}</select></td>
             <td><input class="input" data-i="${i}" data-k="description" value="${E(l.description)}"></td>
             <td style="width:120px"><input class="input" data-i="${i}" data-k="receipt_no" value="${E(l.receipt_no)}"></td>
             <td style="width:130px"><input class="input num" type="number" data-i="${i}" data-k="amount" value="${l.amount || ""}"></td>
@@ -255,7 +255,7 @@
         <div class="space-y-4 min-w-0">
           <div class="card p-5"><div class="section-title">ເອກະສານແນບ (ຮູບ / ໄຟລ໌)</div><div class="hint mb-2">📎 ${E(ATT_HINT[r.type] || "ໃບບິນ / ໃບຮັບເງິນ / ຮູບຫຼັກຖານ")}</div><button class="btn btn-ghost btn-block" id="rq-attach">📎 ແນບ / ເບິ່ງ (${AppCtx.docsCount("requests", r.id)})</button></div>
           <div class="card p-5"><div class="section-title">ປະຫວັດ</div><ul class="timeline">${Flows.history(id).map(h => `<li><b>${E(DID[h.action] || h.action)}</b> · ${E(h.role)}${h.note ? `<div class="text-slate-600">${E(h.note)}</div>` : ""}<div class="t-when">${E(h.ts.slice(0, 16).replace("T", " "))}</div></li>`).join("")}</ul></div>
-          <div class="card p-5"><div class="section-title">ການລົງບັນຊີ</div><div class="space-y-2">${BOOK[r.type].map(b => `<div class="booking">📒 <span>${E(b)}</span></div>`).join("")}</div></div>
+          <div class="card p-5 acct-only"><div class="section-title">ການລົງບັນຊີ</div><div class="space-y-2">${BOOK[r.type].map(b => `<div class="booking">📒 <span>${E(b)}</span></div>`).join("")}</div></div>
         </div>
       </div>`;
     bindDetail(r);

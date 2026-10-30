@@ -205,7 +205,7 @@
       <p class="text-sm text-slate-600">⏳ ${E(n.why || ("ລໍຖ້າ " + n.waitingFor.join(" / ")))}</p></div>`;
   }
   const note = (ph) => `<textarea class="input mt-3" id="nx-note" rows="2" placeholder="${E(ph)}"></textarea>`;
-  const booking = st => `<div class="booking mt-3">📒 <span>${E(Procure.BOOKING[st])}</span></div>`;
+  const booking = st => `<div class="booking mt-3 acct-only">📒 <span>${E(Procure.BOOKING[st])}</span></div>`;
 
   function nextBox(c, s, n) {
     const st = s.stage;
@@ -342,7 +342,7 @@
   }
   function bookingCard(s) {
     const jes = s.grns.map(g => ["ຮັບເຄື່ອງ " + g.number + ` <button class="btn btn-ghost btn-sm grn-print" data-id="${g.id}">ພິມ</button>`, g.total]).concat(s.bills.map(b => ["ບິນ " + b.number, b.total]));
-    return `<div class="card p-5"><div class="section-title">ການລົງບັນຊີ</div>
+    return `<div class="card p-5 acct-only"><div class="section-title">ການລົງບັນຊີ</div>
       <div class="text-sm space-y-2">
         <div class="booking">1–4 · ຂໍຊື້, ສະເໜີ, PO: <b>ບໍ່ລົງບັນຊີ</b></div>
         <div class="booking">5 · ຮັບເຄື່ອງ: Dr ສິນຄ້າ/ຄ່າໃຊ້ຈ່າຍ/ຊັບສິນ · Cr GR/IR</div>
