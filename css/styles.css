@@ -253,11 +253,12 @@ table.data tr:hover td { background:#fafcfc; }
   #view { padding-bottom:84px; }
   #toastRoot { top:auto !important; bottom:72px; left:12px; right:12px; }
   .page-actions .btn-primary { flex:1; justify-content:center; padding:12px 14px; }
-  .more-pop { position:fixed; left:12px; right:12px; top:auto; bottom:72px; max-height:60vh; }
+  .more-pop { position:fixed; left:12px; right:12px; top:auto; bottom:72px; max-height:60vh; width:auto; min-width:0; box-sizing:border-box; }
   .modal-bg { padding:0; align-items:stretch; }
   .modal { margin-top:0; max-width:none !important; border-radius:0; min-height:100%; }
 }
 @media (max-width:640px) {
+  .grid > * { min-width:0; } .input, input[type=file] { max-width:100%; box-sizing:border-box; }
   .tbl-wrap { max-height:none; overflow:visible; }
   .card:has(> .tbl-wrap) { border:0; background:none; }
   .tbl-wrap table.data, .tbl-wrap table.data tbody { display:block; }

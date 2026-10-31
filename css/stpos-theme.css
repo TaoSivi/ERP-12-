@@ -258,7 +258,7 @@ body.no-acct .acct-only { display: none !important; }
 .st-check small { display: block; color: var(--muted); font-size: 12.5px; }
 .st-danger { border: 1.5px dashed #e9a5a5; background: #fff6f6; border-radius: var(--r-md); padding: 12px; }
 .st-save { display: flex; justify-content: space-between; align-items: center; gap: 12px; position: sticky; bottom: 8px; margin-top: 12px; background: #fff; border-radius: var(--r-md); box-shadow: var(--sh-2); padding: 10px 14px; }
-@media (max-width: 760px) { .st-wrap { grid-template-columns: 1fr; } .st-nav { flex-direction: row; overflow-x: auto; position: static; } .st-tab { white-space: nowrap; } }
+@media (max-width: 760px) { .st-wrap { grid-template-columns: minmax(0, 1fr); } .st-nav { min-width: 0; max-width: 100%; } .st-nav { flex-direction: row; overflow-x: auto; position: static; } .st-tab { white-space: nowrap; } }
 /* Settings: left tabs and right content scroll separately (desktop) */
 @media (min-width: 761px) {
   .st-wrap { height: calc(100vh - 200px); min-height: 360px; }
