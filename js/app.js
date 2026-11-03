@@ -303,11 +303,15 @@
     const recentJe = Store.all("journal_entries").sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "")).slice(0, 6);
 
     view().innerHTML = UI.pageHead("ໜ້າຫຼັກ", "ວັນທີ " + UI.today(), "") + firstStepsCard() + actionCenter() +
-      `<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
-        ${UI.kpi("ເງິນສົດ & ທະນາຄານ", M(cash), "ເງິນທີ່ມີຢູ່ຕອນນີ້", "#15803d")}
-        ${UI.kpi("ລູກຄ້າຄ້າງຈ່າຍເຮົາ (AR)", M(ar), "ເງິນທີ່ລໍຖ້າຮັບຈາກລູກຄ້າ", "#1d4ed8")}
-        ${UI.kpi("ເຮົາຄ້າງຈ່າຍຜູ້ສະໜອງ (AP)", M(ap), "ເງິນທີ່ຕ້ອງຈ່າຍຜູ້ສະໜອງ", "#b45309")}
-        ${UI.kpi("VAT ຕ້ອງຍື່ນລັດ", M(vatPay), "VAT ຂາຍ − VAT ຊື້", "#6d28d9")}
+      `<div class="bento">
+        <a class="bn-hero" href="#/reports"><div class="bn-lbl">ກຳໄລສຸດທິ (ຕັ້ງແຕ່ຕົ້ນປີ)</div><div class="bn-big" style="${pl.net < 0 ? "color:#ffb4a8" : ""}">${M(pl.net)}</div>
+          <div class="bn-pills"><span>ລາຍຮັບ ${M(pl.revenue)}</span><span>ຄ່າໃຊ້ຈ່າຍ ${M(pl.expense)}</span><span class="go">ເບິ່ງລາຍງານ ↗</span></div></a>
+        <div class="bn-kpi"><div class="bn-ico">💵</div><div class="bn-lbl">ເງິນສົດ & ທະນາຄານ</div><div class="bn-num">${M(cash)}</div><div class="bn-sub">ເງິນທີ່ມີຢູ່ຕອນນີ້</div></div>
+        <div class="bn-kpi"><div class="bn-ico">📥</div><div class="bn-lbl">ລູກຄ້າຄ້າງຈ່າຍເຮົາ (AR)</div><div class="bn-num">${M(ar)}</div><div class="bn-sub">ເງິນທີ່ລໍຖ້າຮັບ</div></div>
+        <div class="bn-kpi"><div class="bn-ico">📤</div><div class="bn-lbl">ເຮົາຄ້າງຈ່າຍ (AP)</div><div class="bn-num">${M(ap)}</div><div class="bn-sub">ເງິນທີ່ຕ້ອງຈ່າຍຜູ້ສະໜອງ</div></div>
+        <div class="bn-kpi"><div class="bn-ico">🧾</div><div class="bn-lbl">VAT ຕ້ອງຍື່ນລັດ</div><div class="bn-num">${M(vatPay)}</div><div class="bn-sub">VAT ຂາຍ − VAT ຊື້</div></div>
+        <a class="bn-dark" href="#/gate"><div class="bn-lbl">ເອກະສານຄ້າງ</div>
+          <div class="bn-cnt"><div><b>${Store.where("invoices", x => x.status === "draft").length}</b><small>Invoice draft</small></div><div><b>${Store.where("bills", x => x.status === "draft").length}</b><small>Bill draft</small></div><div><b>${Store.where("purchase_orders", x => x.status === "open").length}</b><small>PO ເປີດ</small></div><div><b>${Store.where("purchase_requisitions", x => x.status === "pending").length}</b><small>PR ລໍ</small></div></div></a>
       </div>
       ${fableChartsCard()}
       <div class="grid lg:grid-cols-3 gap-4 mb-5">
