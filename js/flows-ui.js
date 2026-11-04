@@ -62,6 +62,7 @@
     const rows = sets[filter] || all;
     view().innerHTML = UI.pageHead("ຄຳຂໍ & ອະນຸມັດ", "ເບີກເງິນສຳຮອງ · ເຄລຍເງິນສຳຮອງ · ຂໍເບີກຈ່າຍ — ອະນຸມັດຄົບແລ້ວ ລະບົບລົງບັນຊີໃຫ້ເອງ",
       `<span class="role-pill">👤 ບົດບາດ: ${E(r)}</span><button class="btn btn-primary btn-lg" id="rq-new">＋ ຄຳຂໍໃໝ່</button>`) +
+      `<div class="card p-4 mb-5 rq-start"><div class="rq-pick-h">ເລີ່ມຄຳຂໍ — ກົດປະເພດທີ່ຕ້ອງການ</div>${pickerHtml("", false, "data-new")}</div>` +
       (overdue.length ? `<div class="ac-card danger mb-4"><div class="ac-ic">⏰</div><div class="ac-body"><div class="ac-title">ເງິນສຳຮອງເກີນກຳນົດເຄລຍ ${overdue.length} ໃບ</div><div class="ac-meta">${E(overdue.map(x => x.number + " " + x.payee + " (" + x.due_clear + ")").join(" · "))}</div></div><button class="btn btn-primary" data-new="CLR">ເຄລຍດຽວນີ້ →</button></div>` : "") +
       `<div class="section-title">ລໍຖ້າທ່ານ <span class="count ${mine.length ? "" : "zero"}">${mine.length}</span></div>` +
       (mine.length ? `<div class="ac-list cols mb-6">${mine.slice(0, 6).map(card).join("")}</div>` : `<div class="ac-empty mb-6">✓ ບໍ່ມີຄຳຂໍລໍທ່ານ</div>`) +
@@ -93,13 +94,14 @@
     ["📥 ເງິນເຂົ້າ", [["RCV", "ບໍລິສັດໄດ້ຮັບເງິນ (ບໍ່ແມ່ນຈາກ Invoice)"]]],
     ["🔁 ແລກປ່ຽນ & ໂອນ", [["FXX", "ແລກປ່ຽນເງິນຕາ (ຊື້/ຂາຍ ດອນລາ, ບາດ)"], ["TRF", "ໂອນເງິນລະຫວ່າງເງິນສົດ ↔ ທະນາຄານ"]]]
   ];
-  function pickerHtml(type, picked) {
+  function pickerHtml(type, picked, attr) {
+    attr = attr || "data-t";
     const T = Flows.TYPES;
     if (picked && T[type]) return `<div class="rq-cur"><span class="rq-cur-ic">${T[type].icon}</span><div><div class="rq-cur-k">ປະເພດຄຳຂໍ</div><b>${E(T[type].label)}</b></div><button type="button" class="btn btn-ghost btn-sm" data-change>ປ່ຽນປະເພດ</button></div>`;
     const known = {}; PICK.forEach(g => g[1].forEach(o => known[o[0]] = 1));
     const extra = Object.keys(T).filter(k => !known[k]).map(k => [k, ""]);
     const groups = PICK.concat(extra.length ? [["ອື່ນໆ", extra]] : []);
-    return `<div class="rq-pick-h">ເລືອກປະເພດຄຳຂໍ — ຢາກເຮັດຫຍັງ?</div>` + groups.map(g => `<div class="rq-grp"><div class="rq-grp-t">${E(g[0])}</div><div class="rq-opts">${g[1].filter(o => T[o[0]]).map(o => `<button type="button" class="rq-opt${o[0] === type ? " on" : ""}" data-t="${o[0]}"><span class="rq-opt-ic">${T[o[0]].icon}</span><span><b>${E(T[o[0]].label)}</b>${o[1] ? `<small>${E(o[1])}</small>` : ""}</span></button>`).join("")}</div></div>`).join("");
+    return (attr === "data-t" ? `<div class="rq-pick-h">ເລືອກປະເພດຄຳຂໍ — ຢາກເຮັດຫຍັງ?</div>` : "") + groups.map(g => `<div class="rq-grp"><div class="rq-grp-t">${E(g[0])}</div><div class="rq-opts">${g[1].filter(o => T[o[0]]).map(o => `<button type="button" class="rq-opt${o[0] === type ? " on" : ""}" ${attr}="${o[0]}"><span class="rq-opt-ic">${T[o[0]].icon}</span><span><b>${E(T[o[0]].label)}</b>${o[1] ? `<small>${E(o[1])}</small>` : ""}</span></button>`).join("")}</div></div>`).join("");
   }
   function newRequest(preset, advId) {
     let type = preset || "PAY", picked = !!preset, vl = [{ account: "", memo: "", orig: 0 }], lines = [{ account: "5200", description: "", amount: 0, vat: false, receipt_no: "" }];
