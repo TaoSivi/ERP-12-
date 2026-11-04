@@ -301,3 +301,16 @@ body.no-acct .acct-only { display: none !important; }
 .dh-chip.warn { background: #fff8e6; color: #8a5a00; }
 .dh-arrow { color: #0a7e7a; font-weight: 800; }
 .dh-chip:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
+
+/* new-request type picker: grouped cards with a one-line "use when"; collapses to a bar once chosen */
+.rq-pick-h { font-weight: 800; color: var(--ink); margin-bottom: 8px; }
+.rq-grp { margin-bottom: 12px; } .rq-grp-t { font-size: 13px; font-weight: 800; color: var(--muted); margin-bottom: 6px; }
+.rq-opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.rq-opt { display: flex; align-items: flex-start; gap: 10px; text-align: left; background: #fff; border: 2px solid var(--line); border-radius: var(--r-md); padding: 10px 12px; min-height: 56px; cursor: pointer; color: var(--ink); }
+.rq-opt:hover { border-color: var(--tiff); background: var(--soft2); }
+.rq-opt:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
+.rq-opt.on { border-color: var(--tiff-deep); background: #dff3f1; }
+.rq-opt b { display: block; font-size: 14.5px; } .rq-opt small { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 2px; }
+.rq-opt-ic { width: 34px; height: 34px; flex: none; border-radius: 10px; background: var(--soft); display: grid; place-items: center; font-size: 17px; }
+.rq-cur { display: flex; align-items: center; gap: 12px; background: var(--soft); border-radius: var(--r-md); padding: 10px 14px; }
+.rq-cur > div { flex: 1; min-width: 0; } .rq-cur-ic { font-size: 22px; } .rq-cur-k { font-size: 12px; color: var(--muted); }

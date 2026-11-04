@@ -86,15 +86,30 @@
   }
 
   /* =================== NEW REQUEST =================== */
+  // type picker: grouped by "what do you want to do", each with a one-line "use when"
+  const PICK = [
+    ["💵 ເງິນສຳຮອງພະນັກງານ", [["ADV", "ພະນັກງານເບີກເງິນໄປໃຊ້ກ່ອນ (ເຊັ່ນ ເດີນທາງ)"], ["CLR", "ສົ່ງໃບບິນຄືນ ຫຼັງໃຊ້ເງິນສຳຮອງແລ້ວ"]]],
+    ["💸 ຈ່າຍເງິນອອກ", [["PAY", "ຂໍຈ່າຍຜູ້ສະໜອງທີ່ມີໃບບິນ ຫຼື ເບີກຄືນພະນັກງານ"], ["EXP", "ຄ່າໃຊ້ຈ່າຍທົ່ວໄປ ເຊັ່ນ ຄ່າໄຟ, ນ້ຳ, ເນັດ"], ["PRJ", "ຈ່າຍຕົ້ນທຶນໂຄງການກໍ່ສ້າງ / ຊັບສິນ"], ["LSE", "ຈ່າຍງວດສິນເຊື່ອ ຫຼື ຄ່າເຊົ່າ"], ["FEE", "ຄ່າທຳນຽມ / ດອກເບ້ຍ ຂອງທະນາຄານ"]]],
+    ["📥 ເງິນເຂົ້າ", [["RCV", "ບໍລິສັດໄດ້ຮັບເງິນ (ບໍ່ແມ່ນຈາກ Invoice)"]]],
+    ["🔁 ແລກປ່ຽນ & ໂອນ", [["FXX", "ແລກປ່ຽນເງິນຕາ (ຊື້/ຂາຍ ດອນລາ, ບາດ)"], ["TRF", "ໂອນເງິນລະຫວ່າງເງິນສົດ ↔ ທະນາຄານ"]]]
+  ];
+  function pickerHtml(type, picked) {
+    const T = Flows.TYPES;
+    if (picked && T[type]) return `<div class="rq-cur"><span class="rq-cur-ic">${T[type].icon}</span><div><div class="rq-cur-k">ປະເພດຄຳຂໍ</div><b>${E(T[type].label)}</b></div><button type="button" class="btn btn-ghost btn-sm" data-change>ປ່ຽນປະເພດ</button></div>`;
+    const known = {}; PICK.forEach(g => g[1].forEach(o => known[o[0]] = 1));
+    const extra = Object.keys(T).filter(k => !known[k]).map(k => [k, ""]);
+    const groups = PICK.concat(extra.length ? [["ອື່ນໆ", extra]] : []);
+    return `<div class="rq-pick-h">ເລືອກປະເພດຄຳຂໍ — ຢາກເຮັດຫຍັງ?</div>` + groups.map(g => `<div class="rq-grp"><div class="rq-grp-t">${E(g[0])}</div><div class="rq-opts">${g[1].filter(o => T[o[0]]).map(o => `<button type="button" class="rq-opt${o[0] === type ? " on" : ""}" data-t="${o[0]}"><span class="rq-opt-ic">${T[o[0]].icon}</span><span><b>${E(T[o[0]].label)}</b>${o[1] ? `<small>${E(o[1])}</small>` : ""}</span></button>`).join("")}</div></div>`).join("");
+  }
   function newRequest(preset, advId) {
-    let type = preset || "PAY", vl = [{ account: "", memo: "", orig: 0 }], lines = [{ account: "5200", description: "", amount: 0, vat: false, receipt_no: "" }];
+    let type = preset || "PAY", picked = !!preset, vl = [{ account: "", memo: "", orig: 0 }], lines = [{ account: "5200", description: "", amount: 0, vat: false, receipt_no: "" }];
     const emps = Store.all("employees").map(e => e.name);
     const vends = Store.all("vendors");
     UI.modal("ຄຳຂໍໃໝ່", `
-      <div class="seg mb-4" id="rq-types">${Object.keys(Flows.TYPES).map(k => `<button data-t="${k}">${Flows.TYPES[k].icon} ${E(Flows.TYPES[k].label)}</button>`).join("")}</div>
+      <div class="mb-4" id="rq-types"></div>
       <div id="rq-form"></div>
       <div class="booking mt-3" id="rq-chain"></div>
-      <div class="flex flex-wrap justify-end gap-2 mt-4"><button class="btn btn-ghost" id="rq-draft">ບັນທຶກຮ່າງ</button><button class="btn btn-primary btn-lg" id="rq-submit">ສົ່ງຂໍອະນຸມັດ →</button></div>
+      <div class="flex flex-wrap justify-end gap-2 mt-4" id="rq-foot"><button class="btn btn-ghost" id="rq-draft">ບັນທຶກຮ່າງ</button><button class="btn btn-primary btn-lg" id="rq-submit">ສົ່ງຂໍອະນຸມັດ →</button></div>
       <datalist id="rq-emps">${emps.map(n => `<option value="${E(n)}">`).join("")}</datalist>`, { wide: true, onMount: (bd, close) => {
         const q = s => bd.querySelector(s);
         const linesTable = () => `<div class="overflow-x-auto mt-3"><table class="data"><thead><tr><th>ໝວດຄ່າໃຊ້ຈ່າຍ</th><th>ລາຍລະອຽດ</th><th>ເລກທີ່ບິນ *</th><th class="num">ຍອດຕາມບິນ</th><th>VAT</th><th></th></tr></thead><tbody>
@@ -123,7 +138,11 @@
           q("#rq-chain").innerHTML = "✍️ <span>ຕ້ອງຜ່ານ: <b>" + Approval.chainLabels(Approval.chainFor(type, t)).map(E).join(" → ") + "</b>" + extra + "</span>";
         }
         function draw() {
-          bd.querySelectorAll("#rq-types [data-t]").forEach(b => b.classList.toggle("on", b.dataset.t === type));
+          q("#rq-types").innerHTML = pickerHtml(type, picked);
+          bd.querySelectorAll("#rq-types [data-t]").forEach(b => b.onclick = () => { type = b.dataset.t; picked = true; draw(); });
+          const chg = q("#rq-types [data-change]"); if (chg) chg.onclick = () => { picked = false; draw(); };
+          q("#rq-foot").style.display = q("#rq-chain").style.display = picked ? "" : "none";
+          if (!picked) { q("#rq-form").innerHTML = ""; return; }
           const openAdv = Flows.openAdvances().filter(a => !Store.where("requests", x => x.type === "CLR" && x.advance_id === a.id && !Flows.ENDED[x.stage]).length);
           let f = `<div class="grid sm:grid-cols-2 gap-3"><div class="sm:col-span-2"><label class="field">ຈຸດປະສົງ *</label><input class="input" id="rq-purpose" placeholder="${type === "ADV" ? "ເຊັ່ນ: ເດີນທາງໄປປາກເຊ ກວດສາຂາ" : type === "CLR" ? "ເຊັ່ນ: ເຄລຍຄ່າເດີນທາງປາກເຊ" : "ເຊັ່ນ: ຄ່າໄຟເດືອນ 9"}"></div>`;
           if (type === "ADV") f += `<div><label class="field">ຜູ້ເບີກ *</label><input class="input" id="rq-payee" list="rq-emps" value="${E(role())}"></div><div><label class="field">ຈຳນວນເງິນ *</label><input class="input num" type="number" id="rq-amt"></div></div>
@@ -189,7 +208,6 @@
               : `<label class="field">ພະນັກງານ *</label><input class="input" id="rq-payee" list="rq-emps" value="${E(role())}">`;
           };
         }
-        bd.querySelectorAll("#rq-types [data-t]").forEach(b => b.onclick = () => { type = b.dataset.t; draw(); });
         const save = submitToo => {
           try {
             const purpose = q("#rq-purpose").value;
