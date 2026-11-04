@@ -290,3 +290,14 @@ body.no-acct .acct-only { display: none !important; }
 .bn-hero:focus-visible, .bn-dark:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
 @media (max-width: 1023px) { .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bn-hero, .bn-dark { grid-column: span 2; } }
 @media (max-width: 480px) { .bn-hero, .bn-dark { padding: 18px; } .bn-cnt { gap: 6px; } .bn-cnt b { font-size: 22px; } }
+
+/* document hub: one card for a whole cycle (PO → GRN → Bill → Pay), steps as chips */
+.dh-tile.chain { width: min(100%, 560px); }
+.dh-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.dh-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--soft); color: var(--ink); border-radius: 999px; padding: 6px 10px 6px 6px; font-size: 13px; font-weight: 700; text-decoration: none; min-height: 36px; }
+.dh-chip:hover { background: #dff3f1; }
+.dh-chip .dh-step { width: 22px; height: 22px; font-size: 12px; }
+.dh-chip b { background: #fff; border-radius: 999px; padding: 1px 8px; font-size: 12px; }
+.dh-chip.warn { background: #fff8e6; color: #8a5a00; }
+.dh-arrow { color: #0a7e7a; font-weight: 800; }
+.dh-chip:focus-visible { outline: 3px solid var(--mint); outline-offset: 2px; }
