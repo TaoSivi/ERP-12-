@@ -59,12 +59,12 @@
         method: "POST",
         // text/plain avoids CORS pre-flight with Apps Script
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ action, payload })
+        body: JSON.stringify({ action, payload, token: window.ERPRemote ? ERPRemote.token() : undefined })
       });
       const txt = await res.text();
       let json;
       try { json = JSON.parse(txt); } catch (e) { throw new Error("ຕອບກັບບໍ່ຖືກຕ້ອງ: " + txt.slice(0, 120)); }
-      if (!json.ok) throw new Error(json.error || "server error");
+      if (!json.ok) { if (json.error === "auth" && window.ERPRemote && ERPRemote.url) ERPRemote.expired(); throw new Error(json.error || "server error"); }
       return json.data;
     },
     async loadAll() {
@@ -215,7 +215,8 @@
   const Store = {
     mode: "demo",
     async boot() {
-      const url = (ERP_CONFIG.APPS_SCRIPT_URL || "").trim();
+      const url = ((window.ERPRemote && ERPRemote.url) || ERP_CONFIG.APPS_SCRIPT_URL || "").trim();
+      if (window.ERPRemote && ERPRemote.url) await ERPRemote.ready();   // company server: sign in first
       if (url) { RemoteBackend.url = url; backend = RemoteBackend; this.mode = "cloud"; }
       else { backend = LocalBackend; this.mode = "demo"; }
 
