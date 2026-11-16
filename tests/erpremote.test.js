@@ -29,3 +29,8 @@ test("erp link: remembered for the tab; a different company drops the old sign-i
   const other = load("?erp=" + encodeURIComponent("https://stpos.store/t/resto2/erp"), first.mem);
   assert.equal(other.R.token(), "", "other company → sign in again");
 });
+
+test("erp link: the cPanel form /api/t/<company>/erp is accepted too", () => {
+  assert.equal(load("?erp=" + encodeURIComponent("https://stdev.store/api/t/clinic1/erp")).R.url, "https://stdev.store/api/t/clinic1/erp");
+  assert.equal(load("?erp=" + encodeURIComponent("https://stdev.store/api/erp")).R.url, "");
+});

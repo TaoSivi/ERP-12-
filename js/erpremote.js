@@ -3,13 +3,13 @@
    - ຕ້ອງເຂົ້າລະບົບດ້ວຍ PIN ຂອງຜູ້ໃຊ້ຂອງບໍລິສັດ (ບົດບາດ ເຈົ້າຂອງ/admin/ບັນຊີ) → token ເກັບໃນ sessionStorage ຂອງແທັບ
    ບໍ່ມີ ?erp= → ໂຫມດເດີມ (demo / APPS_SCRIPT_URL) ບໍ່ປ່ຽນ */
 (function () {
-  const OK = /^https:\/\/[^\/?#]+\/t\/[a-z0-9][a-z0-9_-]{1,31}\/erp$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\/t\/[a-z0-9][a-z0-9_-]{1,31}\/erp$/i;
+  const OK = /^https:\/\/[^\/?#]+(\/api)?\/t\/[a-z0-9][a-z0-9_-]{1,31}\/erp$|^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/api)?\/t\/[a-z0-9][a-z0-9_-]{1,31}\/erp$/i;
   const ss = { get: k => { try { return sessionStorage.getItem(k) || ""; } catch (e) { return ""; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) { /* private mode */ } }, del: k => { try { sessionStorage.removeItem(k); } catch (e) { /* ignore */ } } };
   let url = "";
   try { const m = /[?&]erp=([^&#]+)/.exec((window.location && window.location.search) || ""); if (m) { const u = decodeURIComponent(m[1]); if (OK.test(u)) { url = u; if (ss.get("erp_url") !== u) ss.del("erp_tk"); ss.set("erp_url", u); } } } catch (e) { /* no location (tests) */ }
   if (!url) url = ss.get("erp_url");
   if (url && !OK.test(url)) url = "";
-  const api = () => url.replace(/\/erp$/, "/api/");
+  const api = () => (/\/api\/t\//.test(url) ? url.replace(/\/erp$/, "") : url.replace(/\/erp$/, "/api")) + "/";
   function jsonp(q, cb) {
     const n = "_erp" + Date.now() + Math.floor(Math.random() * 1e4), sc = document.createElement("script"); let done = false;
     const fin = r => { if (done) return; done = true; clearTimeout(t); delete window[n]; sc.remove(); cb(r); };
