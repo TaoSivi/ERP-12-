@@ -10,7 +10,9 @@
     : coll === "stock_docs" ? ({ ISS: "ໃບຈ່າຍສິນຄ້າ", ADJ: "ໃບປັບປຸງສາງ", CNT: "ໃບກວດນັບສາງ" }[row.type] || WHERE[coll][0]) : WHERE[coll][0];
   const role = () => { try { return (window.AppCtx && AppCtx.currentRole && AppCtx.currentRole()) || localStorage.getItem("laobooks_role") || "Admin"; } catch (e) { return "Admin"; } };
 
-  function folderFor(name) {
+  // type / year / month (DocBox, loaded after this file); falls back to one folder per type if DocBox is missing
+  function folderFor(name, date) {
+    if (window.DocBox) return DocBox.autoFolder(name, date);
     const f = Store.all("doc_folders").find(x => x.name === name) || Store.insert("doc_folders", { name, auto: true, created_at: new Date().toISOString() });
     return f.id;
   }
@@ -18,7 +20,7 @@
     if (!WHERE[coll] || !row || Store.all("documents").some(d => d.ref_type === coll && d.ref_id === row.id)) return;
     const lb = label(coll, row);
     Store.insert("documents", { name: lb + " " + (row.number || ""), description: "ເກັບອັດຕະໂນມັດຈາກລະບົບ", ref_type: coll, ref_id: row.id, auto: true,
-      folder_id: folderFor(lb), tags: "auto", status: "approved", size: 0, created_role: role(), created_at: new Date().toISOString() });
+      folder_id: folderFor(lb, row.date), tags: "auto", status: "approved", size: 0, created_role: role(), created_at: new Date().toISOString() });
   }
   const orig = Store.insert;
   Store.insert = function (coll, obj) { const r = orig.call(this, coll, obj); try { file(coll, r); } catch (e) { console.error(e); } return r; };

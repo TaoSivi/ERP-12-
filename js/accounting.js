@@ -8,7 +8,9 @@
   function PA(role) { const m = Store.get("settings", "posting") || {}; return m[role] || POSTING_DEFAULTS[role]; }
 
   /* ---------- Chart of accounts helpers ---------- */
-  function acc(code) { return Store.where("accounts", a => a.code === String(code))[0] || null; }
+  // companies on a template chart (settings.company.coa_alias) map the few built-in 4-digit codes to their own chart
+  function alias(code) { const c = Store.get("settings", "company"), m = c && c.coa_alias; return (m && m[String(code)]) || String(code); }
+  function acc(code) { const k = alias(code); return Store.where("accounts", a => a.code === k)[0] || null; }
   function accName(code) { const a = acc(code); return a ? a.code + " " + a.name : code; }
 
   /* ---------- Numbering (gap-free per year) ---------- */
@@ -124,7 +126,7 @@
       if ((Number(l.debit) || 0) < 0 || (Number(l.credit) || 0) < 0) throw new Error("ຍອດ Dr/Cr ຕິດລົບບໍ່ໄດ້ (" + a.code + ")");
     });
     const cleaned = lines
-      .map(l => ({ account: String(l.account), account_name: accName(l.account), debit: round(l.debit || 0), credit: round(l.credit || 0), memo: l.memo || "" }))
+      .map(l => ({ account: alias(l.account), account_name: accName(l.account), debit: round(l.debit || 0), credit: round(l.credit || 0), memo: l.memo || "" }))
       .filter(l => l.debit || l.credit);
     // ---- posting-rule splits: divide a side's amount equally across added accounts ----
     const _sp = Store.get("settings", "posting_split");
@@ -325,7 +327,7 @@
     return map;
   }
   function accountBalance(code) {
-    const m = accountMovements()[String(code)] || { debit: 0, credit: 0 };
+    const m = accountMovements()[alias(code)] || { debit: 0, credit: 0 };
     const a = acc(code);
     const type = a ? a.type : "Asset";
     // Asset/Expense: debit-normal ; Liability/Equity/Revenue: credit-normal
@@ -710,6 +712,7 @@
   }
 
   window.Acc = {
+    alias,
     round, acc, accName, nextNumber, taxRate,
     lotsFor, stockQty, stockValue, computeCOGS, recordMove,
     assertOpen, postJournal, reverseJournal,

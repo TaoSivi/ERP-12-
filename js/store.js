@@ -18,7 +18,7 @@
     "sales_orders","so_lines","deliveries","delivery_lines","users","holidays",
     "boms","bom_lines",
     "employees","payroll","assets","budgets","audit_log",
-    "precedents","guard_log","auto_runs","pr_quotes","approvals","grns","grn_lines","requests","request_lines","accruals","documents","doc_folders","announcements","announcement_acks","workflows","doc_templates","departments"
+    "precedents","guard_log","auto_runs","pr_quotes","approvals","grns","grn_lines","requests","request_lines","accruals","documents","doc_trash","doc_folders","announcements","announcement_acks","workflows","doc_templates","departments"
   ];
 
   // each company has its own browser database: the first company keeps the original key, others get "__<slot>"
@@ -155,6 +155,17 @@
     });
   }
 
+  function slotTemplate() { try { const pi = SLOT && localStorage.getItem("laobooks_slot_init__" + SLOT); return pi ? JSON.parse(pi).coa || "" : ""; } catch (e) { return ""; } }
+  function applyTemplate(key, tpl) {
+    tpl.accounts.forEach(([code, name, type]) => DB.accounts.push({ id: "acc_" + code, code, name, type, is_header: 0, is_active: 1 }));
+    const co = DB.settings.find(s => s.id === "company");
+    co.coa_template = key; co.coa_alias = Object.assign({}, tpl.alias);
+    const roles = {}, PD = (window.Acc && Acc.POSTING_DEFAULTS) || {};
+    Object.keys(PD).forEach(r => { roles[r] = tpl.alias[PD[r]] || PD[r]; });
+    DB.settings.push(Object.assign({ id: "posting" }, roles));
+    if (!DB.bank_accounts.length) DB.bank_accounts.push({ id: "bank_main", name: tpl.bank.name, number: "", currency: "LAK", gl_account: tpl.bank.gl, opening_balance: 0, created_at: new Date().toISOString() });
+  }
+
   function seedTax() {
     if (DB.taxcodes.length) return;
     DB.taxcodes.push({ id:"tax_out10", name:"VAT ຂາຍ 10%", rate:10, type:"Output" });
@@ -215,7 +226,10 @@
       // (pushing every row would duplicate the whole database in the Google Sheet)
       const known = {};
       COLLECTIONS.forEach(c => { known[c] = new Set(DB[c].map(r => r.id)); });
-      seedAccounts(); seedTax(); seedSettings(); seedBank(); seedDemo(); ensureAccounts();
+      // a new company created with a chart template (js/coa-jewelry.js) starts from that chart instead of the default one
+      const tplKey = slotTemplate(), tpl = !DB.accounts.length && tplKey && window.COA_TEMPLATES && window.COA_TEMPLATES[tplKey];
+      if (!tpl) seedAccounts(); seedTax(); seedSettings(); if (tpl) applyTemplate(tplKey, tpl); seedBank(); seedDemo();
+      if (!(DB.settings.find(s => s.id === "company") || {}).coa_template) ensureAccounts(); // default-chart extras only
       const fresh = [];
       COLLECTIONS.forEach(c => DB[c].forEach(r => { if (!known[c].has(r.id)) fresh.push([c, r]); }));
       if (fresh.length) {

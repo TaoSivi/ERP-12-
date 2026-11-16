@@ -751,7 +751,7 @@
   function gl() {
     let tab = "coa";
     function render() {
-      view().innerHTML = UI.pageHead("ບັນຊີແຍກປະເພດ", "General Ledger", `<button class="btn btn-ghost" id="ptax">ອາກອນກຳໄລ</button><button class="btn btn-ghost" id="obimport">Opening Bal</button><button class="btn btn-ghost" id="jvimport">ນຳເຂົ້າປຶ້ມບັນຊີປະຈຳວັນ</button><button class="btn btn-ghost" id="coalt">ນຳເຂົ້າຜັງບັນຊີ ລາວໃຕ້ (LT)</button><button class="btn btn-ghost" id="coaimport">Import CoA</button><button class="btn btn-primary" id="quickrec">⚡ Quick Record</button><button class="btn btn-ghost" id="coaexp">Export CoA</button><button class="btn btn-ghost" id="recur">Recurring</button><button class="btn btn-ghost" id="fxadj">FX Adjust</button><button class="btn btn-ghost" id="yearend">ປິດສິ້ນປີ</button><button class="btn btn-primary" id="je">+ ບັນທຶກ JE</button>`) +
+      view().innerHTML = UI.pageHead("ບັນຊີແຍກປະເພດ", "General Ledger", `<button class="btn btn-ghost" id="ptax">ອາກອນກຳໄລ</button><button class="btn btn-ghost" id="obimport">Opening Bal</button><button class="btn btn-ghost" id="jvimport">ນຳເຂົ້າປຶ້ມບັນຊີປະຈຳວັນ</button><button class="btn btn-ghost" id="coalt">ນຳເຂົ້າຜັງບັນຊີ ລາວໃຕ້ (LT)</button><button class="btn btn-ghost" id="coajw">💍 ຜັງບັນຊີ ຮ້ານເຄື່ອງປະດັບ (LT)</button><button class="btn btn-ghost" id="coaimport">Import CoA</button><button class="btn btn-primary" id="quickrec">⚡ Quick Record</button><button class="btn btn-ghost" id="coaexp">Export CoA</button><button class="btn btn-ghost" id="recur">Recurring</button><button class="btn btn-ghost" id="fxadj">FX Adjust</button><button class="btn btn-ghost" id="yearend">ປິດສິ້ນປີ</button><button class="btn btn-primary" id="je">+ ບັນທຶກ JE</button>`) +
         `<div class="flex gap-1 mb-4 border-b border-slate-200 flex-wrap">
           ${["coa|ຜັງບັນຊີ", "tb|Trial Balance", "journal|Journal", "pl|ກຳໄລ-ຂາດທຶນ", "bs|ໃບດຸ່ນດ່ຽງ"].map(t => { const [k, l] = t.split("|"); return `<span class="tab ${tab === k ? "active" : ""}" data-tab="${k}">${l}</span>`; }).join("")}
         </div><div id="glbody"></div>`;
@@ -766,6 +766,7 @@
       view().querySelector("#ptax").onclick = () => profitTaxModal();
       view().querySelector("#coaimport").onclick = () => importCoaCSV();
       view().querySelector("#coalt").onclick = () => importCoaLT();
+      view().querySelector("#coajw").onclick = () => importCoaJewelry();
       view().querySelector("#jvimport").onclick = () => JVImport.modal();
       const b = view().querySelector("#glbody");
       if (tab === "coa") b.innerHTML = glCoA();
@@ -1659,6 +1660,16 @@
   function slotSave(list) { try { localStorage.setItem("laobooks_db_slots", JSON.stringify(list)); } catch (e) {} }
   function slotRemember() { const c = activeCompany() || {}, l = slotList().filter(x => x.slot !== Store.slot); l.push({ slot: Store.slot, name: c.name || "ບໍລິສັດ", tin: c.tin || "" }); l.sort((x, y) => (x.slot === "" ? -1 : y.slot === "" ? 1 : 0)); slotSave(l); }
   function switchSlot(slot) { try { if (slot) localStorage.setItem("laobooks_db_slot", slot); else localStorage.removeItem("laobooks_db_slot"); } catch (e) {} location.hash = "#/dashboard"; location.reload(); }
+  // new company = new empty database; optional chart template (js/coa-jewelry.js) is applied on its first start
+  function newCompanyForm(coa) {
+    const opts = [{ value: "", label: "ມາດຕະຖານ (4 ຫຼັກ)" }].concat(Object.keys(window.COA_TEMPLATES || {}).map(k => ({ value: k, label: COA_TEMPLATES[k].name })));
+    formModal("ບໍລິສັດໃໝ່ (ຖານຂໍ້ມູນເປົ່າ)", [{ name: "name", label: "ຊື່ບໍລິສັດ" }, { name: "tin", label: "TIN" }, { name: "coa", label: "ຜັງບັນຊີ", type: "select", options: opts }], { coa: coa || "" }, (d, c2) => {
+      if (!String(d.name || "").trim()) return UI.toast("ໃສ່ຊື່ບໍລິສັດ", "warn");
+      const slot = "c" + Date.now().toString(36), l = slotList(); l.push({ slot, name: d.name.trim(), tin: d.tin || "" }); slotSave(l);
+      try { localStorage.setItem("laobooks_slot_init__" + slot, JSON.stringify({ name: d.name.trim(), tin: d.tin || "", coa: d.coa || "" })); } catch (e) {}
+      c2(); switchSlot(slot);
+    });
+  }
   function companySwitchModal() {
     slotRemember();
     const rows = slotList(), cloud = Store.mode === "cloud";
@@ -1667,12 +1678,7 @@
       <div class="flex justify-end mb-2"><button class="btn btn-primary btn-sm" id="cmp-add">+ ບໍລິສັດໃໝ່ (ຖານຂໍ້ມູນເປົ່າ)</button></div>
       <table class="data"><thead><tr><th>ຊື່</th><th>TIN</th><th></th></tr></thead><tbody>${body}</tbody></table>`,
       { wide: true, onMount: (bd, close) => {
-        bd.querySelector("#cmp-add").onclick = () => formModal("ບໍລິສັດໃໝ່", [{ name: "name", label: "ຊື່ບໍລິສັດ" }, { name: "tin", label: "TIN" }], {}, (d, c2) => {
-          if (!String(d.name || "").trim()) return UI.toast("ໃສ່ຊື່ບໍລິສັດ", "warn");
-          const slot = "c" + Date.now().toString(36), l = slotList(); l.push({ slot, name: d.name.trim(), tin: d.tin || "" }); slotSave(l);
-          try { localStorage.setItem("laobooks_slot_init__" + slot, JSON.stringify({ name: d.name.trim(), tin: d.tin || "" })); } catch (e) {}
-          c2(); switchSlot(slot);
-        });
+        bd.querySelector("#cmp-add").onclick = () => newCompanyForm("");
         bd.querySelectorAll("[data-set]").forEach(b => b.onclick = () => switchSlot(b.dataset.set));
       }});
   }
@@ -2109,6 +2115,19 @@
       Acc.audit("create", "accounts", "COA_LT", fresh.length + " accounts");
       UI.toast("ນຳເຂົ້າ " + fresh.length + " ບັນຊີແລ້ວ", "ok"); gl();
     });
+  }
+  // Chart template for a NEW company (js/coa-jewelry.js): preview, then create the company with it.
+  function importCoaJewelry() {
+    const tpl = window.COA_TEMPLATES.jewelry_lt, groups = [];
+    tpl.accounts.forEach(r => { if (groups.indexOf(r[3]) < 0) groups.push(r[3]); });
+    UI.modal("💍 " + tpl.name, `<p class="hint mb-3">ຜັງບັນຊີໃໝ່ ${tpl.accounts.length} ບັນຊີ ສຳລັບ<b>ບໍລິສັດໃໝ່</b> (ຖານຂໍ້ມູນແຍກ ບໍ່ປົນກັບບໍລິສັດນີ້). ຜູກ ລູກໜີ້, ເຈົ້າໜີ້, VAT, ສິນຄ້າ, ຕົ້ນທຶນ… ກັບຜັງນີ້ໃຫ້ອັດຕະໂນມັດ.</p>
+      ${groups.map(g => `<div class="section-title mt-3">${E(g)}</div><div class="overflow-x-auto"><table class="data"><tbody>${tpl.accounts.filter(r => r[3] === g).map(r => `<tr><td style="width:90px"><b>${E(r[0])}</b></td><td>${E(r[1])}</td><td style="width:90px" class="hint">${E(r[2])}</td></tr>`).join("")}</tbody></table></div>`).join("")}
+      <p class="hint mt-3">ຂອງທີ່ລູກຄ້າເອົາມາຈຳນຳ ແລະ ສິນຄ້າຂາຍຝາກ ບໍ່ແມ່ນສິນຄ້າຂອງຮ້ານ — ບໍ່ລົງບັນຊີສິນຄ້າ. ບັນທຶກແຕ່ ເງິນໃຫ້ຈຳນຳ (1271.01) ແລະ ຄ້າງຈ່າຍເຈົ້າຂອງຂາຍຝາກ (448.02).</p>
+      <div class="flex justify-end gap-2 mt-4"><button class="btn btn-ghost" data-x>ປິດ</button>${canAdmin() ? '<button class="btn btn-primary" id="cj-new">＋ ສ້າງບໍລິສັດໃໝ່ດ້ວຍຜັງນີ້</button>' : ""}</div>`,
+      { wide: true, onMount: (bd, close) => {
+        bd.querySelector("[data-x]").onclick = close;
+        const nb = bd.querySelector("#cj-new"); if (nb) nb.onclick = () => { close(); newCompanyForm("jewelry_lt"); };
+      } });
   }
   function importCoaCSV() { csvImportModal("ນຳເຂົ້າ Chart of Accounts", "code,name,type", cols => { const code = cols[0]; if (Store.where("accounts", a => a.code === code).length) return; Store.insert("accounts", { id: "acc_" + code, code, name: cols[1] || code, type: cols[2] || "Expense", is_header: 0, is_active: 1 }); }, gl); }
 
@@ -3203,7 +3222,7 @@
     UI.modal("⬆ ອັບໂຫລດເອກະສານ", `
       <input type="file" id="du-file" multiple class="input mb-3">
       <div class="grid grid-cols-2 gap-3">
-        <div><label class="field">ໂຟນເດີ</label><select class="input" id="du-folder"><option value="">— ບໍ່ມີ —</option>${folders.map(f => `<option value="${E(f.id)}" ${preset.folder_id === f.id ? "selected" : ""}>${E(f.name)}</option>`).join("")}</select></div>
+        <div><label class="field">ໂຟນເດີ</label><select class="input" id="du-folder"><option value="__auto" ${preset.folder_id ? "" : "selected"}>🗂 ອັດຕະໂນມັດ (ຕາມປະເພດ + ເດືອນ)</option><option value="">— ບໍ່ມີໂຟນເດີ —</option>${dcFolderOpts().map(f => `<option value="${E(f.value)}" ${preset.folder_id === f.value ? "selected" : ""}>${E(f.label)}</option>`).join("")}</select></div>
         <div><label class="field">Tags (ຄັ່ນດ້ວຍ ,)</label><input class="input" id="du-tags" placeholder="ສັນຍາ, HR, 2026" value="${E(preset.tags || "")}"></div>
         <div class="col-span-2"><label class="field">ຄຳອະທິບາຍ (ທາງເລືອກ)</label><textarea class="input" id="du-desc" rows="2" placeholder="ສະຫຼຸບເນື້ອໃນ / ວັດຖຸປະສົງ...">${E(preset.description || "")}</textarea></div>
         <div><label class="field">ລິ້ງໃສ່ໂມດູນ</label><select class="input" id="du-reftype">${DOC_REF_TYPES.map(r => `<option value="${r[0]}" ${preset.ref_type === r[0] ? "selected" : ""}>${E(r[1])}</option>`).join("")}</select></div>
@@ -3235,7 +3254,7 @@
               else chain = body.querySelector("#du-chain").value.split(",").map(s => s.trim()).filter(Boolean);
               const doc = Store.insert("documents", {
                 name: f.name, size: f.size, mime: f.type || "application/octet-stream",
-                folder_id: body.querySelector("#du-folder").value || "",
+                folder_id: dcPickFolder(body.querySelector("#du-folder").value, rt.value),
                 tags: body.querySelector("#du-tags").value.split(",").map(s => s.trim()).filter(Boolean).join(","),
                 description: body.querySelector("#du-desc").value.trim(),
                 ref_type: rt.value || "", ref_id: rt.value ? (ri.value || "") : "",
@@ -3298,7 +3317,7 @@
     formModal("✎ ແກ້ໄຂເອກະສານ", [
       { name: "name", label: "ຊື່ໄຟລ໌", col: "col-span-2" },
       { name: "description", label: "ຄຳອະທິບາຍ", type: "textarea", col: "col-span-2" },
-      { name: "folder_id", label: "ໂຟນເດີ", type: "select", options: [{ value: "", label: "— ບໍ່ມີ —" }].concat(folders.map(f => ({ value: f.id, label: f.name }))), col: "col-span-1" },
+      { name: "folder_id", label: "ໂຟນເດີ", type: "select", options: [{ value: "", label: "— ບໍ່ມີ —" }].concat(dcFolderOpts()), col: "col-span-1" },
       { name: "tags", label: "Tags (ຄັ່ນ ,)", col: "col-span-1" },
       { name: "chain", label: "ໂຊ່ອະນຸມັດ (ຄັ່ນ , — ວ່າງ = Manager/Admin)", col: "col-span-2" }
     ], { name: d.name, description: d.description || "", folder_id: d.folder_id || "", tags: d.tags || "", chain: (d.approvers || []).join(", ") }, (v, close) => {
@@ -3425,17 +3444,112 @@
   }
 
   /* ---------- ໜ້າໂມດູນ ---------- */
-  let docFilter = { folder: "all", status: "", tag: "", q: "", ext: "", from: "", to: "" };
+  let docFilter = { folder: "all", view: "", status: "", tag: "", q: "", ext: "", from: "", to: "" };
   let docSel = new Set();
+  let docOpen = new Set();   // folders opened in the tree
+  /* ---------- Document box UI helpers (logic lives in js/docbox.js) ---------- */
+  DocBox.hooks.fileDel = docFileDel;                      // purge from the trash also erases the stored file
+  const NBSP2 = "  ";
+  function dcCtx() { return { role: currentRole(), canApprove: d => docCanApproveThis(d) }; }
+  function dcPickFolder(v, refType) { return v === "__auto" ? DocBox.autoFolder(DocBox.typeLabelOf(refType || ""), new Date().toISOString().slice(0, 10)) : (v || ""); }
+  const dcFolderOpts = () => DocBox.flat().map(f => ({ value: f.id, label: NBSP2.repeat(f.depth) + f.name }));
+
+  // smart views row: all · waiting for me · mine · last 7 days · no folder · trash (drop a file on the last two)
+  function dcViewsHTML() {
+    const vis = Store.all("documents").filter(d => Filing.visible(d) && Filing.alive(d)), ctx = dcCtx(), cur = docFilter.view || "";
+    const n = v => vis.filter(d => DocBox.inView(v, d, ctx)).length, tr = DocBox.trashRows().filter(Filing.visible).length;
+    const b = (v, label, count, drop) => `<button type="button" class="${cur === v ? "on" : ""}" data-vw="${v}"${drop ? ` data-drop="${drop}"` : ""}>${label} (${count})</button>`;
+    return `<div class="seg mb-3" id="dc-views">${b("", "ທັງໝົດ", vis.length)}${b("toapprove", "✍️ ລໍຂ້ອຍອະນຸມັດ", n("toapprove"))}${b("me", "👤 ຂອງຂ້ອຍ", n("me"))}${b("recent", "🕒 7 ວັນຫຼ້າສຸດ", n("recent"))}${b("nofolder", "📭 ບໍ່ມີໂຟນເດີ", n("nofolder"), "none")}${b("trash", "🗑 ຖັງຂີ້ເຫຍື້ອ", tr, "__trash")}</div>`;
+  }
+  function dcBindViews(v) { v.querySelectorAll("[data-vw]").forEach(b => b.onclick = () => { docFilter.view = b.dataset.vw; docSel.clear(); docs(); }); }
+
+  // folder tree: ▸/▾ open-close, ＋ subfolder, ✎ rename, ✕ delete; every row is a drop target
+  function dcTreeHTML(count) {
+    const sel = docFilter.folder, chain = new Set();
+    for (let f = DocBox.folder(sel), g = 0; f && g < 20; g++) { chain.add(f.id); f = f.parent_id ? DocBox.folder(f.parent_id) : null; }
+    const walk = (pid, depth) => DocBox.children(pid).map(f => {
+      const kids = DocBox.children(f.id), isOpen = docOpen.has(f.id) || chain.has(f.id);
+      return `<div><a class="dct-row${sel === f.id ? " on" : ""}" style="padding-left:${6 + depth * 14}px" data-fd="${E(f.id)}" data-drop="${E(f.id)}">
+        <button type="button" class="dct-tg" data-ftg="${E(f.id)}" ${kids.length ? "" : "disabled"} aria-label="ເປີດ / ປິດ">${kids.length ? (isOpen ? "▾" : "▸") : "·"}</button>
+        <span class="dct-n" title="${E(DocBox.path(f.id))}">📂 ${E(f.name)}</span><span class="dct-c">${count(f.id)}</span>
+        <span class="dct-ac">${depth + 1 < DocBox.MAX_DEPTH ? `<button type="button" data-fadd="${E(f.id)}" title="ເພີ່ມໂຟນເດີຍ່ອຍ">＋</button>` : ""}${canApprove() ? `<button type="button" data-fren="${E(f.id)}" title="ປ່ຽນຊື່">✎</button><button type="button" data-fdel="${E(f.id)}" title="ລຶບໂຟນເດີ">✕</button>` : ""}</span></a>${kids.length && isOpen ? walk(f.id, depth + 1) : ""}</div>`;
+    }).join("");
+    return walk("", 0);
+  }
+  function dcFolderForm(pid) {
+    const cur = docFilter.folder !== "all" && docFilter.folder !== "none" ? docFilter.folder : "";
+    const opts = [{ value: "", label: "— ລະດັບເທິງສຸດ —" }].concat(DocBox.flat().filter(f => f.depth + 1 < DocBox.MAX_DEPTH).map(f => ({ value: f.id, label: NBSP2.repeat(f.depth) + f.name })));
+    formModal("+ ໂຟນເດີໃໝ່", [{ name: "name", label: "ຊື່ໂຟນເດີ", col: "col-span-2" }, { name: "parent", label: "ຢູ່ໃນ", type: "select", options: opts, col: "col-span-2" }], { parent: pid === undefined ? cur : pid }, (d, close) => {
+      try { DocBox.create(d.name, d.parent); if (d.parent) docOpen.add(d.parent); close(); docs(); } catch (e) { UI.toast(e.message, "warn"); }
+    });
+  }
+  function dcRenameForm(id) {
+    const f = DocBox.folder(id); if (!f) return;
+    formModal("✎ ປ່ຽນຊື່ໂຟນເດີ", [{ name: "name", label: "ຊື່ໂຟນເດີ", col: "col-span-2" }], { name: f.name }, (d, close) => { try { DocBox.rename(id, d.name); close(); docs(); } catch (e) { UI.toast(e.message, "warn"); } });
+  }
+  function dcOrganize() {
+    const n = DocBox.organizePlan().length;
+    if (!n) return UI.toast("ເອກະສານຂອງລະບົບ ຈັດເຂົ້າໂຟນເດີອັດຕະໂນມັດຄົບແລ້ວ", "info");
+    UI.confirmDialog("ຈັດ " + n + " ເອກະສານຂອງລະບົບ (ໃບບິນ, ໃບສັ່ງຊື້ ...) ເຂົ້າໂຟນເດີ ປະເພດ / ປີ / ເດືອນ? ໄຟລ໌ທີ່ທ່ານອັບໂຫຼດເອງບໍ່ຖືກແຕະ ແລະ ລາກກັບໄດ້", () => { const m = DocBox.organize(); docs(); UI.toast("ຈັດແລ້ວ " + m + " ເອກະສານ", "ok"); });
+  }
+
+  // drag & drop: drag a file card (or all ticked ones) onto a folder, "no folder" or the trash button
+  const dcMayMove = d => canApprove() || (!d.auto && d.created_role === currentRole());
+  function dcDrop(ids, target) {
+    if (!Array.isArray(ids) || !ids.length || target === "all") return;
+    if (target === "__trash") {
+      let n = 0, no = 0; ids.forEach(id => { const d = Store.get("documents", id); if (!d) return; if (docCanDelete(d)) { DocBox.trash(id, currentRole()); n++; } else no++; });
+      docSel.clear(); docs(); UI.toast(n ? "🗑 ຍ້າຍ " + n + " ໄຟລ໌ໄປຖັງຂີ້ເຫຍື້ອ (ກູ້ຄືນໄດ້ " + DocBox.TRASH_DAYS + " ວັນ)" : "ບໍ່ມີສິດລຶບ", n ? "ok" : "warn"); if (no && n) UI.toast(no + " ໄຟລ໌ບໍ່ມີສິດລຶບ", "warn"); return;
+    }
+    const fid = target === "none" ? "" : target, ok = ids.filter(id => { const d = Store.get("documents", id); return d && dcMayMove(d); });
+    let n = 0; try { n = DocBox.move(ok, fid); } catch (e) { return UI.toast(e.message, "warn"); }
+    docSel.clear(); docs();
+    UI.toast(n ? "📂 ຍ້າຍ " + n + " ໄຟລ໌ → " + (fid ? DocBox.path(fid) : "ບໍ່ມີໂຟນເດີ") : (ok.length ? "ຢູ່ໃນໂຟນເດີນັ້ນແລ້ວ" : "ບໍ່ມີສິດຍ້າຍ"), n ? "ok" : "warn");
+    if (ok.length < ids.length && n) UI.toast((ids.length - ok.length) + " ໄຟລ໌ບໍ່ມີສິດຍ້າຍ", "warn");
+  }
+  function dcBindDnD(v) {
+    v.querySelectorAll("[data-dragdoc]").forEach(el => {
+      el.ondragstart = e => { const id = el.dataset.dragdoc, ids = docSel.has(id) && docSel.size > 1 ? Array.from(docSel) : [id]; e.dataTransfer.setData("text/plain", JSON.stringify(ids)); e.dataTransfer.effectAllowed = "move"; el.classList.add("dc-dragging"); v.classList.add("dc-dnd"); };
+      el.ondragend = () => { el.classList.remove("dc-dragging"); v.classList.remove("dc-dnd"); };
+    });
+    v.querySelectorAll("[data-drop]").forEach(z => {
+      z.ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; z.classList.add("dc-over"); };
+      z.ondragleave = () => z.classList.remove("dc-over");
+      z.ondrop = e => { e.preventDefault(); z.classList.remove("dc-over"); v.classList.remove("dc-dnd"); let ids = []; try { ids = JSON.parse(e.dataTransfer.getData("text/plain")); } catch (x) { /* not ours */ } dcDrop(ids, z.dataset.drop); };
+    });
+  }
+
+  // trash page: restore, delete for good by hand, or wait — erased automatically after DocBox.TRASH_DAYS days
+  function dcTrashPage() {
+    const rows = DocBox.trashRows().filter(Filing.visible).sort((a, b) => String(b.deleted_at).localeCompare(String(a.deleted_at)));
+    view().innerHTML = UI.pageHead("🗑 ຖັງຂີ້ເຫຍື້ອ", "ເອກະສານທີ່ລຶບ ຖືກເກັບໄວ້ " + DocBox.TRASH_DAYS + " ວັນ ແລ້ວລຶບຖາວອນເອງ — ຫຼື ກູ້ຄືນ / ລຶບຖາວອນດ້ວຍຕົນເອງໄດ້ທຸກເວລາ",
+      canApprove() && rows.length ? `<button class="btn btn-danger" id="tr-empty">ລຶບຖາວອນທັງໝົດ (${rows.length})</button>` : "") + dcViewsHTML() +
+      (rows.length ? `<div class="space-y-2">${rows.map(d => {
+        const left = DocBox.daysLeft(d), can = docCanDelete(d);
+        return `<div class="card p-3"><div class="flex flex-wrap items-center gap-3"><div class="text-2xl">${docIcon(d.name)}</div>
+          <div class="flex-1 min-w-0"><div class="font-medium truncate">${E(d.name)}</div>
+          <div class="hint flex flex-wrap gap-x-2">${d.deleted_folder && DocBox.folder(d.deleted_folder) ? "<span>📂 " + E(DocBox.path(d.deleted_folder)) + "</span>" : ""}<span>ລຶບໂດຍ ${E(d.deleted_by || "-")} · ${UI.fmtDate(d.deleted_at)}</span><b class="${left <= 5 ? "text-red-600" : ""}">ເຫຼືອ ${left} ວັນ</b></div></div>
+          <div class="flex gap-1">${can ? `<button class="btn btn-ok btn-sm" data-trr="${E(d.id)}">♻ ກູ້ຄືນ</button><button class="btn btn-danger btn-sm" data-trp="${E(d.id)}">ລຶບຖາວອນ</button>` : '<span class="hint">ບໍ່ມີສິດ</span>'}</div></div></div>`;
+      }).join("")}</div>` : `<div class="card p-10 text-center text-slate-400">ຖັງຂີ້ເຫຍື້ອຫວ່າງ</div>`);
+    const v = view();
+    dcBindViews(v); dcBindDnD(v);
+    v.querySelectorAll("[data-trr]").forEach(b => b.onclick = () => { try { DocBox.restore(b.dataset.trr); UI.toast("♻ ກູ້ຄືນແລ້ວ", "ok"); } catch (e) { UI.toast(e.message, "warn"); } docs(); });
+    v.querySelectorAll("[data-trp]").forEach(b => b.onclick = () => { const t = Store.get("doc_trash", b.dataset.trp); UI.confirmDialog("ລຶບ " + (t ? t.name : "") + " ຖາວອນ? ກູ້ຄືນບໍ່ໄດ້", () => { DocBox.purge(b.dataset.trp); UI.toast("ລຶບຖາວອນແລ້ວ", "ok"); docs(); }); });
+    const em = v.querySelector("#tr-empty"); if (em) em.onclick = () => UI.confirmDialog("ລຶບຖາວອນ " + rows.length + " ໄຟລ໌ໃນຖັງຂີ້ເຫຍື້ອ? ກູ້ຄືນບໍ່ໄດ້", () => { const n = DocBox.emptyTrash(); UI.toast("ລຶບຖາວອນ " + n + " ໄຟລ໌", "ok"); docs(); });
+  }
   function docs() {
+    try { DocBox.purgeExpired(); } catch (e) { console.warn("trash purge:", e); }
+    if (docFilter.view === "trash") return dcTrashPage();
     const all = Store.all("documents").filter(d => Filing.visible(d) && Filing.alive(d));
     const folders = Store.all("doc_folders");
     const tags = [...new Set(all.flatMap(d => String(d.tags || "").split(",").filter(Boolean)))].sort();
     const cnt = s => all.filter(d => (d.status || "draft") === s).length;
-    const inFolder = f => all.filter(d => (d.folder_id || "") === f).length;
+    const inFolder = f => f === "" ? all.filter(d => !d.folder_id).length : all.filter(d => DocBox.descendants(f).has(d.folder_id)).length;   // a folder counts everything below it
+    const fset = (docFilter.folder === "all" || docFilter.folder === "none") ? null : DocBox.descendants(docFilter.folder);
     const exts = [...new Set(all.map(d => docExt(d.name)).filter(Boolean))].sort();
     let list = all.filter(d =>
-      (docFilter.folder === "all" || (docFilter.folder === "none" ? !(d.folder_id) : d.folder_id === docFilter.folder)) &&
+      (docFilter.folder === "all" || (docFilter.folder === "none" ? !(d.folder_id) : fset.has(d.folder_id))) &&
+      DocBox.inView(docFilter.view || "", d, dcCtx()) &&
       (!docFilter.status || (d.status || "draft") === docFilter.status) &&
       (!docFilter.tag || String(d.tags || "").split(",").indexOf(docFilter.tag) !== -1) &&
       (!docFilter.ext || docExt(d.name) === docFilter.ext) &&
@@ -3447,15 +3561,15 @@
     docSel.forEach(id => { if (!list.find(d => d.id === id)) docSel.delete(id); });
     const chip = (s, label) => `<button class="btn btn-ghost btn-sm ${docFilter.status === s ? "!bg-brand-100" : ""}" data-st="${s}" style="${docFilter.status === s ? "background:#cff6f3" : ""}">${label}</button>`;
     view().innerHTML = UI.pageHead("📁 ຈັດການເອກະສານ", "ອັບໂຫລດ · ໂຟນເດີ · Tags · ອະນຸມັດ · ເຜີຍແຜ່ · ແຈ້ງການ — ໃຊ້ຮ່ວມກັບທຸກໂມດູນ",
-      `<button class="btn btn-ghost" id="dc-tmpl">📄 ແມ່ແບບ</button><button class="btn btn-ghost" id="dc-wf">🔁 ຂະບວນການ</button><button class="btn btn-ghost" id="dc-announce">📢 ແຈ້ງການ</button><button class="btn btn-ghost" id="dc-tags">🏷 Tags</button><button class="btn btn-ghost" id="dc-folder">+ ໂຟນເດີ</button><button class="btn btn-primary" id="dc-up">⬆ ອັບໂຫລດ</button>`) +
-      `<div class="flex flex-wrap gap-2 mb-4">${chip("", "ທັງໝົດ (" + all.length + ")")}${chip("draft", "ຮ່າງ (" + cnt("draft") + ")")}${chip("pending", "⏳ ລໍອະນຸມັດ (" + cnt("pending") + ")")}${chip("approved", "✅ ອະນຸມັດ (" + cnt("approved") + ")")}${chip("published", "📢 ເຜີຍແຜ່ (" + cnt("published") + ")")}${chip("rejected", "✕ ຕີກັບ (" + cnt("rejected") + ")")}</div>
+      `<button class="btn btn-ghost" id="dc-tmpl">📄 ແມ່ແບບ</button><button class="btn btn-ghost" id="dc-wf">🔁 ຂະບວນການ</button><button class="btn btn-ghost" id="dc-announce">📢 ແຈ້ງການ</button><button class="btn btn-ghost" id="dc-tags">🏷 Tags</button>${canApprove() ? `<button class="btn btn-ghost" id="dc-organize">🗂 ຈັດເຂົ້າໂຟນເດີ ອັດຕະໂນມັດ</button>` : ""}<button class="btn btn-ghost" id="dc-folder">+ ໂຟນເດີ</button><button class="btn btn-primary" id="dc-up">⬆ ອັບໂຫລດ</button>`) +
+      dcViewsHTML() + `<div class="flex flex-wrap gap-2 mb-4">${chip("", "ທັງໝົດ (" + all.length + ")")}${chip("draft", "ຮ່າງ (" + cnt("draft") + ")")}${chip("pending", "⏳ ລໍອະນຸມັດ (" + cnt("pending") + ")")}${chip("approved", "✅ ອະນຸມັດ (" + cnt("approved") + ")")}${chip("published", "📢 ເຜີຍແຜ່ (" + cnt("published") + ")")}${chip("rejected", "✕ ຕີກັບ (" + cnt("rejected") + ")")}</div>
       <div class="grid lg:grid-cols-4 gap-4">
         <div class="card p-4">
           <h3 class="font-semibold mb-2 text-sm">📂 ໂຟນເດີ</h3>
           <div class="space-y-1 text-sm" id="dc-folders">
             <a class="flex justify-between px-2 py-1.5 rounded cursor-pointer ${docFilter.folder === "all" ? "bg-brand-50 text-brand-700 font-medium" : "hover:bg-slate-50"}" data-fd="all"><span>ທັງໝົດ</span><span class="text-slate-400">${all.length}</span></a>
-            ${folders.map(f => `<a class="flex justify-between items-center px-2 py-1.5 rounded cursor-pointer ${docFilter.folder === f.id ? "bg-brand-50 text-brand-700 font-medium" : "hover:bg-slate-50"}" data-fd="${E(f.id)}"><span>📂 ${E(f.name)}</span><span class="flex items-center gap-1"><span class="text-slate-400">${inFolder(f.id)}</span>${canApprove() ? `<button class="text-slate-300 hover:text-red-500" data-fdel="${E(f.id)}" title="ລຶບໂຟນເດີ">✕</button>` : ""}</span></a>`).join("")}
-            <a class="flex justify-between px-2 py-1.5 rounded cursor-pointer ${docFilter.folder === "none" ? "bg-brand-50 text-brand-700 font-medium" : "hover:bg-slate-50"}" data-fd="none"><span>— ບໍ່ມີໂຟນເດີ</span><span class="text-slate-400">${inFolder("")}</span></a>
+            ${dcTreeHTML(inFolder)}
+            <a class="flex justify-between px-2 py-1.5 rounded cursor-pointer ${docFilter.folder === "none" ? "bg-brand-50 text-brand-700 font-medium" : "hover:bg-slate-50"}" data-fd="none" data-drop="none"><span>— ບໍ່ມີໂຟນເດີ</span><span class="text-slate-400">${inFolder("")}</span></a>
           </div>
           ${tags.length ? `<h3 class="font-semibold mb-2 mt-4 text-sm">🏷 Tags</h3><div class="flex flex-wrap gap-1">${tags.map(t => `<button class="badge ${docFilter.tag === t ? "green" : "gray"}" data-tg="${E(t)}">${E(t)}</button>`).join("")}</div>` : ""}
           <p class="hint mt-4">💾 ໄຟລ໌ໃນເຄື່ອງ: ${docSizeFmt(docStoreUsed())}</p>
@@ -3483,17 +3597,17 @@
             if (st === "pending" && docCanApproveThis(d)) acts += `<button class="btn btn-primary btn-sm" data-ok="${E(d.id)}">✅ ອະນຸມັດ</button><button class="btn btn-ghost btn-sm" data-rev="${E(d.id)}">✎ ຂໍແກ້</button><button class="btn btn-danger btn-sm" data-no="${E(d.id)}">✕</button>`;
             if (!d.auto && st === "approved" && canApprove()) acts += `<button class="btn btn-ghost btn-sm" data-pub="${E(d.id)}">📢 ເຜີຍແຜ່</button>`;
             if (!d.auto) acts += `<button class="btn btn-ghost btn-sm" data-ed="${E(d.id)}">✎</button>`;
-            if (docCanDelete(d)) acts += `<button class="btn btn-ghost btn-sm text-red-500" data-del="${E(d.id)}">🗑</button>`;
+            if (docCanDelete(d)) acts += `<button class="btn btn-ghost btn-sm text-red-500" data-del="${E(d.id)}" title="ຍ້າຍໄປຖັງຂີ້ເຫຍື້ອ">🗑</button>`;
             const ref = docRefName(d);
             const chainHtml = chain ? `<span class="badge ${st === "approved" || st === "published" ? "green" : "amber"}">🔁 ຂັ້ນ ${Math.min((d.approval_step || 0) + (st === "approved" || st === "published" ? 0 : 1), chain.length)}/${chain.length}: ${E(chain.map((r, i) => (i < (d.approval_step || 0) || st === "approved" || st === "published") ? "✓" + r : r).join(" → "))}</span>` : "";
-            return `<div class="card p-3">
+            return `<div class="card p-3 dc-card" draggable="true" data-dragdoc="${E(d.id)}">
               <div class="flex flex-wrap items-center gap-3">
                 <input type="checkbox" class="dc-sel" data-sel="${E(d.id)}" ${docSel.has(d.id) ? "checked" : ""} style="width:18px;height:18px">
                 <div class="text-2xl">${docIcon(d.name)}</div>
                 <div class="flex-1 min-w-0">
                   <div class="font-medium truncate">${E(d.name)}</div>
                   ${d.description ? `<div class="hint truncate">${E(d.description)}</div>` : ""}
-                  <div class="hint flex flex-wrap gap-x-2 gap-y-1 items-center">${d.folder_id ? "📂 " + E((Store.get("doc_folders", d.folder_id) || {}).name || "") : ""}${String(d.tags || "").split(",").filter(Boolean).map(t => `<span class="badge gray">${E(t)}</span>`).join("")}${ref ? `<span class="badge blue">🔗 ${E(ref)}</span>` : ""}${chainHtml}<span>${docSizeFmt(d.size)}</span><span>${UI.fmtDate(d.created_at)}</span><span>${E(d.created_role || "")}</span></div>
+                  <div class="hint flex flex-wrap gap-x-2 gap-y-1 items-center">${d.folder_id && DocBox.folder(d.folder_id) ? "📂 " + E(DocBox.path(d.folder_id)) : ""}${String(d.tags || "").split(",").filter(Boolean).map(t => `<span class="badge gray">${E(t)}</span>`).join("")}${ref ? `<span class="badge blue">🔗 ${E(ref)}</span>` : ""}${chainHtml}<span>${docSizeFmt(d.size)}</span><span>${UI.fmtDate(d.created_at)}</span><span>${E(d.created_role || "")}</span></div>
                 </div>
                 <div>${docBadge(st)}</div>
                 <div class="flex flex-wrap gap-1">${acts}</div>
@@ -3507,6 +3621,8 @@
       </div>`;
     const v = view();
     v.querySelector("#dc-up").onclick = () => docUploadModal({ folder_id: docFilter.folder !== "all" && docFilter.folder !== "none" ? docFilter.folder : "" });
+    dcBindViews(v); dcBindDnD(v);
+    const dorg = v.querySelector("#dc-organize"); if (dorg) dorg.onclick = dcOrganize;
     v.querySelector("#dc-tags").onclick = () => location.hash = "#/tags";
     v.querySelector("#dc-announce").onclick = () => location.hash = "#/announce";
     v.querySelector("#dc-wf").onclick = () => location.hash = "#/workflows";
@@ -3514,21 +3630,23 @@
     const ext = v.querySelector("#dc-ext"); if (ext) ext.onchange = () => { docFilter.ext = ext.value; docs(); };
     const dfrom = v.querySelector("#dc-from"); if (dfrom) dfrom.onchange = () => { docFilter.from = dfrom.value; docs(); };
     const dto = v.querySelector("#dc-to"); if (dto) dto.onchange = () => { docFilter.to = dto.value; docs(); };
-    const dclr = v.querySelector("#dc-clear"); if (dclr) dclr.onclick = () => { docFilter = { folder: docFilter.folder, status: "", tag: "", q: "", ext: "", from: "", to: "" }; docs(); };
+    const dclr = v.querySelector("#dc-clear"); if (dclr) dclr.onclick = () => { docFilter = { folder: docFilter.folder, view: docFilter.view, status: "", tag: "", q: "", ext: "", from: "", to: "" }; docs(); };
     // ---- bulk select ----
     v.querySelectorAll(".dc-sel").forEach(cb => cb.onchange = () => { cb.checked ? docSel.add(cb.dataset.sel) : docSel.delete(cb.dataset.sel); docs(); });
     const selAll = v.querySelector("#dc-all"); if (selAll) selAll.onchange = () => { if (selAll.checked) list.forEach(d => docSel.add(d.id)); else docSel.clear(); docs(); };
     const bclr = v.querySelector("#dc-bclr"); if (bclr) bclr.onclick = () => { docSel.clear(); docs(); };
     const bsub = v.querySelector("#dc-bsub"); if (bsub) bsub.onclick = () => { let n = 0; docSel.forEach(id => { const d = Store.get("documents", id); if (d && (d.status === "draft" || d.status === "revision" || d.status === "rejected") && docSetStatusSilent(id, "pending")) n++; }); docSel.clear(); UI.toast("📨 ສົ່ງຂໍອະນຸມັດ " + n + " ໄຟລ໌", "ok"); docs(); };
-    const bdel = v.querySelector("#dc-bdel"); if (bdel) bdel.onclick = () => UI.confirmDialog("ລຶບ " + docSel.size + " ໄຟລ໌ທີ່ເລືອກ? (ຫາຍຖາວອນ)", () => { docSel.forEach(id => { const d = Store.get("documents", id); if (d && docCanDelete(d)) { docFileDel(id); Store.remove("documents", id); Acc.audit("doc_delete", "documents", id, d.name); } }); docSel.clear(); docs(); UI.toast("ລຶບແລ້ວ", "ok"); });
-    const bmove = v.querySelector("#dc-bmove"); if (bmove) bmove.onclick = () => { const fl = Store.all("doc_folders"); formModal("ຍ້າຍ " + docSel.size + " ໄຟລ໌ໄປໂຟນເດີ", [{ name: "fid", label: "ໂຟນເດີ", type: "select", options: [{ value: "", label: "— ບໍ່ມີໂຟນເດີ —" }].concat(fl.map(f => ({ value: f.id, label: f.name }))), col: "col-span-2" }], {}, (d2, close) => { docSel.forEach(id => Store.update("documents", id, { folder_id: d2.fid || "" })); docSel.clear(); close(); docs(); UI.toast("ຍ້າຍແລ້ວ", "ok"); }); };
-    v.querySelector("#dc-folder").onclick = () => formModal("+ ໂຟນເດີໃໝ່", [{ name: "name", label: "ຊື່ໂຟນເດີ", col: "col-span-2" }], {}, (d2, close) => {
-      const nm = String(d2.name || "").trim(); if (!nm) return UI.toast("ໃສ່ຊື່", "warn");
-      if (Store.where("doc_folders", f => f.name === nm).length) return UI.toast("ມີໂຟນເດີຊື່ນີ້ແລ້ວ", "warn");
-      Store.insert("doc_folders", { name: nm, created_at: new Date().toISOString() }); close(); docs();
-    });
-    v.querySelectorAll("[data-fd]").forEach(a => a.onclick = e => { if (e.target.closest("[data-fdel]")) return; docFilter.folder = a.dataset.fd; docs(); });
-    v.querySelectorAll("[data-fdel]").forEach(b => b.onclick = () => { const f = Store.get("doc_folders", b.dataset.fdel); if (inFolder(f.id)) return UI.toast("ໂຟນເດີຍັງມີເອກະສານ " + inFolder(f.id) + " ໄຟລ໌ — ຍ້າຍອອກກ່ອນ", "warn"); UI.confirmDialog("ລຶບໂຟນເດີ " + f.name + "?", () => { Store.remove("doc_folders", f.id); if (docFilter.folder === f.id) docFilter.folder = "all"; docs(); }); });
+    const bdel = v.querySelector("#dc-bdel"); if (bdel) bdel.onclick = () => UI.confirmDialog("ຍ້າຍ " + docSel.size + " ໄຟລ໌ທີ່ເລືອກ ໄປຖັງຂີ້ເຫຍື້ອ? (ກູ້ຄືນໄດ້ " + DocBox.TRASH_DAYS + " ວັນ)", () => { let n = 0; Array.from(docSel).forEach(id => { const d = Store.get("documents", id); if (d && docCanDelete(d)) { DocBox.trash(id, currentRole()); n++; } }); docSel.clear(); docs(); UI.toast("🗑 ຍ້າຍ " + n + " ໄຟລ໌ໄປຖັງຂີ້ເຫຍື້ອ", "ok"); });
+    const bmove = v.querySelector("#dc-bmove"); if (bmove) bmove.onclick = () => formModal("ຍ້າຍ " + docSel.size + " ໄຟລ໌ໄປໂຟນເດີ", [{ name: "fid", label: "ໂຟນເດີ", type: "select", options: [{ value: "", label: "— ບໍ່ມີໂຟນເດີ —" }].concat(dcFolderOpts()), col: "col-span-2" }], {}, (d2, close) => { try { const n = DocBox.move(Array.from(docSel), d2.fid || ""); docSel.clear(); close(); docs(); UI.toast("ຍ້າຍ " + n + " ໄຟລ໌", "ok"); } catch (e) { UI.toast(e.message, "warn"); } });
+    v.querySelector("#dc-folder").onclick = () => dcFolderForm();
+    v.querySelectorAll("[data-fd]").forEach(a => a.onclick = e => { if (e.target.closest("[data-fdel],[data-fren],[data-fadd],[data-ftg]")) return; docFilter.folder = a.dataset.fd; docs(); });
+    v.querySelectorAll("[data-ftg]").forEach(b => b.onclick = e => { e.stopPropagation(); const id = b.dataset.ftg; docOpen.has(id) ? docOpen.delete(id) : docOpen.add(id); docs(); });
+    v.querySelectorAll("[data-fadd]").forEach(b => b.onclick = e => { e.stopPropagation(); dcFolderForm(b.dataset.fadd); });
+    v.querySelectorAll("[data-fren]").forEach(b => b.onclick = e => { e.stopPropagation(); dcRenameForm(b.dataset.fren); });
+    v.querySelectorAll("[data-fdel]").forEach(b => b.onclick = e => { e.stopPropagation(); const f = Store.get("doc_folders", b.dataset.fdel); if (!f) return;
+      if (DocBox.children(f.id).length) return UI.toast("ໂຟນເດີນີ້ມີໂຟນເດີຍ່ອຍ — ລຶບ ຫຼືຍ້າຍອອກກ່ອນ", "warn");
+      if (DocBox.docsIn(f.id, true).length) return UI.toast("ໂຟນເດີຍັງມີເອກະສານ " + DocBox.docsIn(f.id, true).length + " ໄຟລ໌ — ຍ້າຍອອກກ່ອນ", "warn");
+      UI.confirmDialog("ລຶບໂຟນເດີ " + DocBox.path(f.id) + "?", () => { DocBox.remove(f.id); if (docFilter.folder === f.id) docFilter.folder = "all"; docs(); }); });
     v.querySelectorAll("[data-st]").forEach(b => b.onclick = () => { docFilter.status = b.dataset.st; docs(); });
     v.querySelectorAll("[data-tg]").forEach(b => b.onclick = () => { docFilter.tag = docFilter.tag === b.dataset.tg ? "" : b.dataset.tg; docs(); });
     const q = v.querySelector("#dc-q"); q.oninput = () => { docFilter.q = q.value.trim().toLowerCase(); clearTimeout(q._t); q._t = setTimeout(docs, 250); };
@@ -3541,7 +3659,7 @@
     v.querySelectorAll("[data-rev]").forEach(b => b.onclick = () => { const dd = byId(b.dataset.rev); formModal("✎ ຂໍໃຫ້ແກ້ໄຂ", [{ name: "note", label: "ບອກຜູ້ສົ່ງວ່າຕ້ອງແກ້ຫຍັງ", type: "textarea", col: "col-span-2" }], {}, (v2, close) => { if (docSetStatus(dd.id, "revision", v2.note)) { close(); UI.toast("✎ ສົ່ງກັບໃຫ້ແກ້ໄຂແລ້ວ", "ok"); docs(); } }); });
     v.querySelectorAll("[data-no]").forEach(b => b.onclick = () => { const dd = byId(b.dataset.no); formModal("✕ ຕີກັບເອກະສານ", [{ name: "note", label: "ເຫດຜົນ (ທາງເລືອກ)", type: "textarea", col: "col-span-2" }], {}, (v2, close) => { if (docSetStatus(dd.id, "rejected", v2.note)) { close(); docs(); } }); });
     v.querySelectorAll("[data-pub]").forEach(b => b.onclick = () => { if (docSetStatus(b.dataset.pub, "published")) { UI.toast("📢 ເຜີຍແຜ່ແລ້ວ", "ok"); docs(); } });
-    v.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { const d = byId(b.dataset.del); UI.confirmDialog("ລຶບ " + d.name + "? (ໄຟລ໌ຈະຫາຍຖາວອນ)", () => { docFileDel(d.id); Store.remove("documents", d.id); Acc.audit("doc_delete", "documents", d.id, d.name); docs(); UI.toast("ລຶບແລ້ວ", "ok"); }); });
+    v.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { const d = byId(b.dataset.del); UI.confirmDialog("ຍ້າຍ " + d.name + " ໄປຖັງຂີ້ເຫຍື້ອ? (ກູ້ຄືນໄດ້ " + DocBox.TRASH_DAYS + " ວັນ — ຫຼືລຶບຖາວອນເອງໃນຖັງຂີ້ເຫຍື້ອ)", () => { DocBox.trash(d.id, currentRole()); docs(); UI.toast("🗑 ຍ້າຍໄປຖັງຂີ້ເຫຍື້ອແລ້ວ", "ok"); }); });
   }
 
   /* ---------- 📎 ແນບເອກະສານໃສ່ໂມດູນອື່ນ ---------- */
@@ -3655,7 +3773,7 @@
     formModal(t ? "✎ ແກ້ໄຂແມ່ແບບ" : "+ ສ້າງແມ່ແບບ", [
       { name: "name", label: "ຊື່ແມ່ແບບ", col: "col-span-2" },
       { name: "desc", label: "ຄຳອະທິບາຍ", type: "textarea", col: "col-span-2" },
-      { name: "folder_id", label: "ໂຟນເດີ (ຕັ້ງລ່ວງໜ້າ)", type: "select", options: [{ value: "", label: "— ບໍ່ມີ —" }].concat(folders.map(f => ({ value: f.id, label: f.name }))), col: "col-span-1" },
+      { name: "folder_id", label: "ໂຟນເດີ (ຕັ້ງລ່ວງໜ້າ)", type: "select", options: [{ value: "", label: "— ບໍ່ມີ —" }].concat(dcFolderOpts()), col: "col-span-1" },
       { name: "tags", label: "Tags (ຄັ່ນ ,)", col: "col-span-1" },
       { name: "workflow_id", label: "ຂະບວນການອະນຸມັດ", type: "select", options: [{ value: "", label: "— Manager/Admin —" }].concat(wfs.map(w => ({ value: w.id, label: w.name }))), col: "col-span-2" }
     ], t ? { name: t.name, desc: t.desc || "", folder_id: t.folder_id || "", tags: t.tags || "", workflow_id: t.workflow_id || "" } : {}, (d, close) => {
@@ -3973,9 +4091,10 @@
   async function boot() {
     applyAdvanced();
     autopostOnOpen();
+    try { DocBox.purgeExpired(); } catch (e) { console.warn("trash purge:", e); }   // trash older than 30 days is erased
     try { const k = "laobooks_slot_init__" + Store.slot, pi = Store.slot && localStorage.getItem(k); if (pi) { const d = JSON.parse(pi); Store.update("settings", "company", { name: d.name, tin: d.tin }); localStorage.removeItem(k); } } catch (e) { console.warn("slot init:", e); }
     if (!Store.all("companies").length) { const sc = Store.get("settings", "company") || {}; Store.insert("companies", { name: sc.name || "ບໍລິສັດ", tin: sc.tin || "", logo: "" }); }
-    [["1250","ເງິນຄ້ຳປະກັນຮັບ (Retention)","Asset"],["1350","ງານລະຫວ່າງດຳເນີນ (WIP)","Asset"],["2550","ເງິນຄ້ຳປະກັນຈ່າຍ","Liability"],["2600","ອາກອນກຳໄລ ຄ້າງຈ່າຍ","Liability"],["5600","ຄ່າອາກອນກຳໄລ","Expense"]].forEach(function(a){ if (!Store.where("accounts", x => x.code === a[0]).length) Store.insert("accounts", { id: "acc_" + a[0], code: a[0], name: a[1], type: a[2], is_header: 0, is_active: 1 }); });
+    [["1250","ເງິນຄ້ຳປະກັນຮັບ (Retention)","Asset"],["1350","ງານລະຫວ່າງດຳເນີນ (WIP)","Asset"],["2550","ເງິນຄ້ຳປະກັນຈ່າຍ","Liability"],["2600","ອາກອນກຳໄລ ຄ້າງຈ່າຍ","Liability"],["5600","ຄ່າອາກອນກຳໄລ","Expense"]].forEach(function(a){ if (!Acc.acc(a[0])) /* via alias: a template chart may already cover it */ Store.insert("accounts", { id: "acc_" + a[0], code: a[0], name: a[1], type: a[2], is_header: 0, is_active: 1 }); });
     const c = activeCompany();
     if (c) { const cn = document.getElementById("companyName"); cn.textContent = c.name; cn.style.cursor = "pointer"; cn.title = "ປ່ຽນບໍລິສັດ"; cn.onclick = () => (currentRole() === "Admin" && !currentUser() ? companySwitchModal() : Entry.gate(true)); slotRemember(); }
     const badge = document.getElementById("conn-badge");
